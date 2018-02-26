@@ -34,8 +34,8 @@ class LabyrinthMacro(val c: blackbox.Context) extends MacroCompiler with Labyrin
     val xfms = transformations(cfg)
     // construct the eval function
     val eval = cfg.getString("emma.compiler.eval") match {
-      case "naive" => NaiveEval(pipeline()(xfms: _*)) _
-      case "timer" => TimerEval(pipeline()(xfms: _*)) _
+      case "naive" => NaiveEval(pipeline(true)(xfms: _*)) _
+      case "timer" => TimerEval(pipeline(true)(xfms: _*)) _
     }
     // apply the pipeline to the input tree
     val rslt = eval(e.tree)

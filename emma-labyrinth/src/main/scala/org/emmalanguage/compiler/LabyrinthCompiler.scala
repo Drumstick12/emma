@@ -20,6 +20,8 @@ import com.typesafe.config.Config
 
 trait LabyrinthCompiler extends Compiler {
 
+  import UniverseImplicits._
+
   def transformations(implicit cfg: Config): Seq[TreeTransform] = Seq(
     // lifting
     Lib.expand,
@@ -30,17 +32,27 @@ trait LabyrinthCompiler extends Compiler {
     Optimizations.addCacheCalls iff "emma.compiler.opt.auto-cache" is true,
     // backend
     Comprehension.combine,
-    Core.unnest
+    Core.unnest,
+    // labyrinth transformations
+    nonbag2bag
     // TODO
 
 //        SparkBackend.transform,
 //        SparkOptimizations.specializeOps iff "emma.compiler.spark.native-ops" is true,
 //
-//    // lowering
-//    Core.trampoline iff "emma.compiler.lower" is "trampoline",
+    // lowering
+//    Core.trampoline iff "emma.compiler.lower" is "trampoline"
 //
 //    // Core.dscfInv iff "emma.compiler.lower" is "dscfInv",
 //
 //    removeShadowedThis
   ) filterNot (_ == noop)
+
+  // non-bag variables to DataBag
+  val nonbag2bag = TreeTransform("nonbag2bag",
+    api.TopDown.transform {
+      case (x: u.Tree) => x.tpe
+      //case Core.Lang.ValDef() => v
+    }._tree
+  )
 }
