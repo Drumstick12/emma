@@ -16,19 +16,22 @@
 package org.emmalanguage
 package compiler
 
-import compiler.lang.TreeMatchers
+class LabyrinthCodegenIntegrationSpec extends BaseCodegenIntegrationSpec
+  with LabyrinthCompilerAware
+  with LabyrinthAware {
 
-
-//import api._
-
-import org.scalatest.FreeSpec
-import org.scalatest.Matchers
-import org.scalatest.prop.PropertyChecks
-
-trait LabyrinthCompilerSpec extends FreeSpec with Matchers with PropertyChecks with TreeMatchers{
-
-  val compiler = new RuntimeCompiler()
   import compiler._
 
-  // TODO
+  def withBackendContext[T](f: Env => T): T =
+    withDefaultFlinkStreamEnv(f)
+
+  // --------------------------------------------------------------------------
+  // Distributed collection conversion
+  // --------------------------------------------------------------------------
+
+  "test simple" in withBackendContext(implicit env => {
+    verify(u.reify {
+      val xs = 1
+    })
+  })
 }

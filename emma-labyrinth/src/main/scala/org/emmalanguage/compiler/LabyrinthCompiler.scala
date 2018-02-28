@@ -22,6 +22,8 @@ trait LabyrinthCompiler extends Compiler {
 
   import UniverseImplicits._
 
+  lazy val StreamExecutionEnvironment = api.Type[org.apache.flink.streaming.api.scala.StreamExecutionEnvironment]
+
   def transformations(implicit cfg: Config): Seq[TreeTransform] = Seq(
     // lifting
     Lib.expand,
@@ -51,8 +53,10 @@ trait LabyrinthCompiler extends Compiler {
   // non-bag variables to DataBag
   val nonbag2bag = TreeTransform("nonbag2bag",
     api.TopDown.transform {
-      case (x: u.Tree) => x.tpe
-      //case Core.Lang.ValDef() => v
+      case (t: u.Tree) => t
+      case v => v
     }._tree
   )
 }
+
+
