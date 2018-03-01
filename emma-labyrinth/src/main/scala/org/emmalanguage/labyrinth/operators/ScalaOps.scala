@@ -13,9 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.emmalanguage.labyrinth.operators;
+package org.emmalanguage
+package labyrinth.operators;
 
-import org.emmalanguage.labyrinth.BagOperatorOutputCollector
+import labyrinth.BagOperatorOutputCollector
 
 import java.util
 
