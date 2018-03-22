@@ -17,6 +17,7 @@ package org.emmalanguage
 package compiler
 
 import com.typesafe.config.Config
+import shapeless.::
 
 trait LabyrinthCompiler extends Compiler {
 
@@ -55,12 +56,47 @@ trait LabyrinthCompiler extends Compiler {
 
   // non-bag variables to DataBag
   val nonbag2bag = TreeTransform("nonbag2bag",
-    api.TopDown.transform {
-      // case vd @ core.ValDef(lhs, rhs) => core.Inst(api.Type(DataBag.tpe, Seq()))
-      case vd @ core.ValDef(lhs, rhs) => vd
-      case v => v
-    }._tree
+    api.TopDown.unsafe.withOwner
+      .transformWith {
+        case Attr.inh(vd @ core.ValDef(_, rhs), owner :: _) if !meta(vd).contains[SkipTraversal] =>
+          println("foo")
+          val seqRhs = core.DefCall(Some(Seq$.ref), Seq$.apply, Seq(rhs.tpe), Seq(Seq(rhs)))
+          val rhsRefDef = valRefAndDef(owner, "Seq", seqRhs)
+          meta(rhsRefDef._2).update(SkipTraversal)
+
+          val newRhs = core.DefCall(
+            Some(API.DataBag$.ref), API.DataBag$.apply, Seq(rhs.tpe), Seq(Seq(rhsRefDef._1))
+          )
+          // val newLhs = newSymbol(owner, "test", newRhs)
+          // val res = core.ValDef(newLhs, newRhs)
+          val resRefDef = valRefAndDef(owner, "Res", newRhs)
+
+          // resRefDef._2
+          meta(resRefDef._2).update(SkipTraversal)
+          core.Let(Seq(rhsRefDef._2, resRefDef._2), Seq(), resRefDef._1)
+        // case vd @ core.ValDef(lhs, rhs) => vd
+      }._tree
   )
+
+  private def newSymbol(own: u.Symbol, name: String, rhs: u.Tree): u.TermSymbol = {
+    api.ValSym(own, api.TermName.fresh(name), rhs.tpe)
+  }
+
+  private def valRefAndDef(own: u.Symbol, name: String, rhs: u.Tree): (u.Ident, u.ValDef) = {
+    val lhs = api.ValSym(own, api.TermName.fresh(name), rhs.tpe)
+    (core.Ref(lhs), core.ValDef(lhs, rhs))
+  }
+
+  object Seq$ extends ModuleAPI {
+
+    lazy val sym = api.Sym[Seq.type].asModule
+
+    val apply = op("apply")
+
+    override def ops = Set()
+  }
+
+  case class SkipTraversal()
 }
 
 
