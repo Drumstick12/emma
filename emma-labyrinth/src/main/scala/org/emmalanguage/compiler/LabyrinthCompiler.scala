@@ -41,11 +41,7 @@ trait LabyrinthCompiler extends Compiler {
     Core.unnest,
     // labyrinth transformations
     nonbag2bag
-    // TODO
 
-//        SparkBackend.transform,
-//        SparkOptimizations.specializeOps iff "emma.compiler.spark.native-ops" is true,
-//
     // lowering
 //    Core.trampoline iff "emma.compiler.lower" is "trampoline"
 //
@@ -56,25 +52,48 @@ trait LabyrinthCompiler extends Compiler {
 
   // non-bag variables to DataBag
   val nonbag2bag = TreeTransform("nonbag2bag",
-    api.TopDown.unsafe.withOwner
+    api.TopDown.unsafe
+      .withOwner
       .transformWith {
-        case Attr.inh(vd @ core.ValDef(_, rhs), owner :: _) if !meta(vd).contains[SkipTraversal] =>
-          println("foo")
+        case Attr.inh(vd @ core.ValDef(lhs, rhs), owner :: _) if !meta(vd).all.all.contains(SkipTraversal) =>
+          println(vd)
+          println(meta(vd).all.all)
           val seqRhs = core.DefCall(Some(Seq$.ref), Seq$.apply, Seq(rhs.tpe), Seq(Seq(rhs)))
-          val rhsRefDef = valRefAndDef(owner, "Seq", seqRhs)
-          meta(rhsRefDef._2).update(SkipTraversal)
+          val seqRefDef = valRefAndDef(owner, "Seq", seqRhs)
+          skip(seqRefDef._2)
 
-          val newRhs = core.DefCall(
-            Some(API.DataBag$.ref), API.DataBag$.apply, Seq(rhs.tpe), Seq(Seq(rhsRefDef._1))
+          val databagRhs = core.DefCall(
+            Some(API.DataBag$.ref), API.DataBag$.apply, Seq(rhs.tpe), Seq(Seq(seqRefDef._1))
           )
-          // val newLhs = newSymbol(owner, "test", newRhs)
-          // val res = core.ValDef(newLhs, newRhs)
-          val resRefDef = valRefAndDef(owner, "Res", newRhs)
+          // val newLhs = newSymbol(owner, "test", databagRhs)
+          // val res = core.ValDef(newLhs, databagRhs)
+          val databagRefDef = valRefAndDef(owner, "Res", databagRhs)
+          skip(databagRefDef._2)
 
-          // resRefDef._2
-          meta(resRefDef._2).update(SkipTraversal)
-          core.Let(Seq(rhsRefDef._2, resRefDef._2), Seq(), resRefDef._1)
-        // case vd @ core.ValDef(lhs, rhs) => vd
+          // dummy ValDef with letblock on rhs - gonna be eliminated by unnest
+          val dummyRhs = core.Let(Seq(seqRefDef._2, databagRefDef._2), Seq(), databagRefDef._1)
+          println(meta(seqRefDef._2).all.all)
+          println(meta(dummyRhs.stats.head).all.all)
+          println(meta(databagRefDef._2).all.all)
+          val dummySym = newSymbol(owner, "a_dummy", dummyRhs)
+          val dummy = core.ValDef(dummySym, dummyRhs)
+          skip(dummy)
+          println(meta(dummy).all.all)
+
+          println("out: ")
+          println(dummy)
+
+          dummy match {
+            case core.ValDef(_, core.Let(stats, _, _)) => {
+              println(stats.head)
+              println(meta(stats.head).all.all)
+            }
+            case _ => ()
+          }
+
+          println("done")
+
+          dummy
       }._tree
   )
 
@@ -97,6 +116,9 @@ trait LabyrinthCompiler extends Compiler {
   }
 
   case class SkipTraversal()
+  def skip(t: u.Tree): Unit = {
+    meta(t).update(SkipTraversal)
+  }
 }
 
 
