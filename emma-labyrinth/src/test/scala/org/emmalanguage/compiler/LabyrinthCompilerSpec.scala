@@ -55,6 +55,9 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
     val exp = reify { val a = DataBag(Seq(1)); a}
 //    val exp = reify { val a = 1; a }
 
-    applyXfrm(nonbag2bag)(inp) shouldBe alphaEqTo(anfPipeline(exp))
+    val bef = applyXfrm(nonbag2bag)(inp)
+    println(bef)
+
+    bef shouldBe alphaEqTo(anfPipeline(exp))
   }
 }
