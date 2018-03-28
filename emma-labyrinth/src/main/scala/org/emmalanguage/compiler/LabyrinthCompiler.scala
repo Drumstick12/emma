@@ -57,6 +57,7 @@ trait LabyrinthCompiler extends Compiler {
       .transformWith {
         case Attr.inh(vd @ core.ValDef(lhs, rhs), owner :: _) if !meta(vd).all.all.contains(SkipTraversal) =>
           println(vd)
+          println
           // println(meta(vd).all.all)
           val seqRhs = core.DefCall(Some(Seq$.ref), Seq$.apply, Seq(rhs.tpe), Seq(Seq(rhs)))
           val seqRefDef = valRefAndDef(owner, "Seq", seqRhs)
@@ -65,36 +66,47 @@ trait LabyrinthCompiler extends Compiler {
           val databagRhs = core.DefCall(
             Some(API.DataBag$.ref), API.DataBag$.apply, Seq(rhs.tpe), Seq(Seq(seqRefDef._1))
           )
-          val databagRefDef = valRefAndDef(owner, "Res", databagRhs)
+          val databagRefDef = valRefAndDef(owner, "DataBag", databagRhs)
           skip(databagRefDef._2)
 
           // dummy ValDef with letblock on rhs - gonna be eliminated by unnest
           val dummyRhs = core.Let(Seq(seqRefDef._2, databagRefDef._2), Seq(), databagRefDef._1)
-          // println(meta(seqRefDef._2).all.all)
-          // println(meta(dummyRhs.stats.head).all.all)
-          // println(meta(databagRefDef._2).all.all)
-          val dummySym = newSymbol(owner, "a_dummy", dummyRhs)
-          val dummy = core.ValDef(dummySym, dummyRhs)
-          skip(dummy)
-          // println(meta(dummy).all.all)
 
-          println("out: ")
-          println(dummy)
-
-          // dummy match {
-          //  case core.ValDef(_, core.Let(stats, _, _)) => {
-          //    println(stats.head)
-          //    println(meta(stats.head).all.all)
-          //  }
-          //  case _ => ()
-          // }
-
+          println(dummyRhs)
           println
 
-          dummy
-        case Attr.inh(vd @ core.ValDef(lhs, rhs), owner :: _) if !meta(vd).all.all.contains(SkipTraversal) =>
-          println(vd)
-          core.ValDef(lhs, rhs)
+          // to be eliminated by unnest
+          val dummyRefDef = valRefAndDef(owner, "dummy", dummyRhs)
+          skip(dummyRefDef._2)
+          println(dummyRefDef._2)
+          println
+
+
+          println(databagRhs.tpe)
+          println(databagRefDef._1.tpe)
+          println(dummyRhs.tpe)
+          println(dummyRefDef._1.tpe)
+          dummyRefDef._2
+
+//          val dummySym = newSymbol(owner, "a_dummy", dummyRhs)
+//          val dummy = core.ValDef(dummySym, dummyRhs)
+//          skip(dummy)
+//          // println(meta(dummy).all.all)
+//
+//          println("out: ")
+//          println(dummy)
+//
+//          // dummy match {
+//          //  case core.ValDef(_, core.Let(stats, _, _)) => {
+//          //    println(stats.head)
+//          //    println(meta(stats.head).all.all)
+//          //  }
+//          //  case _ => ()
+//          // }
+//
+//          println
+//
+//          dummy
       }._tree
   )
 
@@ -103,8 +115,8 @@ trait LabyrinthCompiler extends Compiler {
   }
 
   private def valRefAndDef(own: u.Symbol, name: String, rhs: u.Tree): (u.Ident, u.ValDef) = {
-    val lhs = api.ValSym(own, api.TermName.fresh(name), rhs.tpe)
-    (core.Ref(lhs), core.ValDef(lhs, rhs))
+    val sbl = api.ValSym(own, api.TermName.fresh(name), rhs.tpe)
+    (core.Ref(sbl), core.ValDef(sbl, rhs))
   }
 
   object Seq$ extends ModuleAPI {
