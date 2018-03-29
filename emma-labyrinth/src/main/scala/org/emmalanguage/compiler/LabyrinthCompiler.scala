@@ -56,9 +56,9 @@ trait LabyrinthCompiler extends Compiler {
       .withOwner
       .transformWith {
         case Attr.inh(vd @ core.ValDef(lhs, rhs), owner :: _) if !meta(vd).all.all.contains(SkipTraversal) =>
-          println(vd)
-          println
-          // println(meta(vd).all.all)
+
+          // transform   a = 1   to   db = Databag(Seq(1))
+
           val seqRhs = core.DefCall(Some(Seq$.ref), Seq$.apply, Seq(rhs.tpe), Seq(Seq(rhs)))
           val seqRefDef = valRefAndDef(owner, "Seq", seqRhs)
           skip(seqRefDef._2)
@@ -71,21 +71,8 @@ trait LabyrinthCompiler extends Compiler {
 
           // dummy ValDef with letblock on rhs - gonna be eliminated by unnest
           val dummyRhs = core.Let(Seq(seqRefDef._2, databagRefDef._2), Seq(), databagRefDef._1)
-
-          println(dummyRhs)
-          println
-
-          // to be eliminated by unnest
           val dummyRefDef = valRefAndDef(owner, "dummy", dummyRhs)
           skip(dummyRefDef._2)
-          println(dummyRefDef._2)
-          println
-
-
-          println(databagRhs.tpe)
-          println(databagRefDef._1.tpe)
-          println(dummyRhs.tpe)
-          println(dummyRefDef._1.tpe)
           dummyRefDef._2
 
 //          val dummySym = newSymbol(owner, "a_dummy", dummyRhs)
