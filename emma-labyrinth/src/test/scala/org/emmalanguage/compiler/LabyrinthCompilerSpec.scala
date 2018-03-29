@@ -50,14 +50,17 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
   // Spec tests
   // ---------------------------------------------------------------------------
 
-  "test simple" in {
+  "def only" in {
+    val inp = reify { val a = 1}
+    val exp = reify { val a = DataBag(Seq(1))}
+
+    applyXfrm(nonbag2bag)(inp) shouldBe alphaEqTo(anfPipeline(exp))
+  }
+
+  "replace refs" in {
     val inp = reify { val a = 1; a}
     val exp = reify { val a = DataBag(Seq(1)); a}
-//    val exp = reify { val a = 1; a }
 
-    val bef = applyXfrm(nonbag2bag)(inp)
-    println(bef)
-
-    bef shouldBe alphaEqTo(anfPipeline(exp))
+    applyXfrm(nonbag2bag)(inp) shouldBe alphaEqTo(anfPipeline(exp))
   }
 }
