@@ -41,7 +41,8 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
 
     pipeline(typeCheck = true)(
       Core.lnf,
-      xfrm.timed,
+      xfrm.timed
+      ,
       Core.unnest
     ).compose(_.tree)
   }
@@ -57,7 +58,7 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
     applyXfrm(nonbag2bag)(inp) shouldBe alphaEqTo(anfPipeline(exp))
   }
 
-  "replace refs" in {
+  "replace refs simple" in {
     val inp = reify { val a = 1; a}
     val exp = reify { val a = DataBag(Seq(1)); a}
 

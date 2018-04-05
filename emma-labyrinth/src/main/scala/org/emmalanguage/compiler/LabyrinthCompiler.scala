@@ -19,6 +19,8 @@ package compiler
 import com.typesafe.config.Config
 import shapeless.::
 
+//import cats.instances.all._
+
 trait LabyrinthCompiler extends Compiler {
 
   import UniverseImplicits._
@@ -43,22 +45,22 @@ trait LabyrinthCompiler extends Compiler {
     nonbag2bag
 
     // lowering
-//    Core.trampoline iff "emma.compiler.lower" is "trampoline"
-//
-//    // Core.dscfInv iff "emma.compiler.lower" is "dscfInv",
-//
-//    removeShadowedThis
+    //    Core.trampoline iff "emma.compiler.lower" is "trampoline"
+    //
+    //    // Core.dscfInv iff "emma.compiler.lower" is "dscfInv",
+    //
+    //    removeShadowedThis
   ) filterNot (_ == noop)
 
   // non-bag variables to DataBag
-  val nonbag2bag = TreeTransform("nonbag2bag",
-    api.TopDown.unsafe
+  val nonbag2bag = TreeTransform("nonbag2bag", (tree: u.Tree) => {
+    val seen = scala.collection.mutable.Map[u.TermSymbol, Option[u.TermSymbol]]()
+
+    val firstRun = api.TopDown.unsafe
       .withOwner
       .transformWith {
         case Attr.inh(vd @ core.ValDef(lhs, rhs), owner :: _) if !meta(vd).all.all.contains(SkipTraversal) =>
-
           // transform   a = 1   to   db = Databag(Seq(1))
-
           val seqRhs = core.DefCall(Some(Seq$.ref), Seq$.apply, Seq(rhs.tpe), Seq(Seq(rhs)))
           val seqRefDef = valRefAndDef(owner, "Seq", seqRhs)
           skip(seqRefDef._2)
@@ -72,13 +74,36 @@ trait LabyrinthCompiler extends Compiler {
           // dummy ValDef with letblock on rhs - gonna be eliminated by unnest
           val dummyRhs = core.Let(Seq(seqRefDef._2, databagRefDef._2), Seq(), databagRefDef._1)
 
-          val dummySym = newSymbol(owner, "dummy", dummyRhs)
+          val dummySym = newSymbol(owner, "db", dummyRhs)
           val dummy = core.ValDef(dummySym, dummyRhs)
           skip(dummy)
-          
+
+          seen += (lhs -> Some(dummySym))
+
           dummy
-      }._tree
-  )
+
+        case Attr.inh(vr @ core.ValRef(sym), _) =>
+          if (seen.keys.toList.contains(sym)) {
+            val nvr = core.ValRef(seen(sym).get)
+            skip(nvr)
+            nvr
+          } else {
+            seen += (sym -> None)
+            vr
+          }
+      }._tree(tree)
+
+
+    // second traversal to correct block types
+    // Background: scala does not change block types if expression type changes
+    // (see internal/Trees.scala - Tree.copyAttrs)
+    api.TopDown.unsafe
+      .withOwner
+      .transformWith {
+        case Attr.inh(lb @ core.Let(vals, defs, expr), owner :: _) if lb.tpe != expr.tpe =>
+          core.Let(vals, defs, expr)
+      }._tree(firstRun)
+  })
 
   private def newSymbol(own: u.Symbol, name: String, rhs: u.Tree): u.TermSymbol = {
     api.ValSym(own, api.TermName.fresh(name), rhs.tpe.widen)
