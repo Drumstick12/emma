@@ -59,7 +59,16 @@ trait LabyrinthCompiler extends Compiler {
     val firstRun = api.TopDown.unsafe
       .withOwner
       .transformWith {
-        case Attr.inh(vd @ core.ValDef(lhs, rhs), owner :: _) if !meta(vd).all.all.contains(SkipTraversal) =>
+
+        // TODO switch refs on ValDef rhs
+        case Attr.inh(vd @ core.ValDef(lhs, rhs), owner :: _)
+          if prePrint(vd) && !meta(vd).all.all.contains(SkipTraversal) && refsKnown(rhs, seen) =>
+
+          vd
+
+        case Attr.inh(vd @ core.ValDef(lhs, rhs), owner :: _)
+          if prePrint(vd) && !meta(vd).all.all.contains(SkipTraversal) && !refsKnown(rhs, seen) =>
+
           // transform   a = 1   to   db = Databag(Seq(1))
           val seqRhs = core.DefCall(Some(Seq$.ref), Seq$.apply, Seq(rhs.tpe), Seq(Seq(rhs)))
           val seqRefDef = valRefAndDef(owner, "Seq", seqRhs)
@@ -79,20 +88,24 @@ trait LabyrinthCompiler extends Compiler {
           skip(dummy)
 
           seen += (lhs -> Some(dummySym))
-
+          postPrint(dummy)
           dummy
 
         case Attr.inh(vr @ core.ValRef(sym), _) =>
-          if (seen.keys.toList.contains(sym)) {
+          if (prePrint(vr) && seen.keys.toList.contains(sym)) {
             val nvr = core.ValRef(seen(sym).get)
             skip(nvr)
+            postPrint(nvr)
             nvr
           } else {
             seen += (sym -> None)
+            postPrint(vr)
             vr
           }
+
       }._tree(tree)
 
+    println("===========")
 
     // second traversal to correct block types
     // Background: scala does not change block types if expression type changes
@@ -100,10 +113,38 @@ trait LabyrinthCompiler extends Compiler {
     api.TopDown.unsafe
       .withOwner
       .transformWith {
-        case Attr.inh(lb @ core.Let(vals, defs, expr), owner :: _) if lb.tpe != expr.tpe =>
-          core.Let(vals, defs, expr)
+        case Attr.inh(lb @ core.Let(vals, defs, expr), owner :: _) if prePrint(lb) && (lb.tpe != expr.tpe) =>
+          val nlb = core.Let(vals, defs, expr)
+          postPrint(nlb)
+          nlb
       }._tree(firstRun)
   })
+
+  def prePrint(t: u.Tree) : Boolean = {
+    print("\nprePrint: ")
+    print(t)
+    print("   type: ")
+    println(t.tpe)
+    true
+  }
+
+  def postPrint(t: u.Tree) : Unit = {
+    print("postPrint: ")
+    print(t)
+    print("   type: ")
+    println(t.tpe)
+  }
+
+  def refsKnown(t: u.Tree, m: scala.collection.mutable.Map[u.TermSymbol, Option[u.TermSymbol]]) : Boolean = {
+    val refNames = t.collect{ case vr @ core.ValRef(_) => vr }.map(_.name)
+    val seenNames = m.keys.toSeq.map(_.name)
+    refNames.foldLeft(false)((a,b) => a || seenNames.contains(b))
+  }
+
+  private def isDatabag(tree: u.Tree): Boolean =  {
+    if (tree.tpe == API.DataBag.tpe) return true
+    false
+  }
 
   private def newSymbol(own: u.Symbol, name: String, rhs: u.Tree): u.TermSymbol = {
     api.ValSym(own, api.TermName.fresh(name), rhs.tpe.widen)
