@@ -65,25 +65,10 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
     applyXfrm(nonbag2bag)(inp) shouldBe alphaEqTo(anfPipeline(exp))
   }
 
-  "replace refs 2" in {
+  "replace refs on valdef rhs" in {
     val inp = reify { val a = 1; val b = a; b}
     val exp = reify { val a = DataBag(Seq(1)); a}
 
     applyXfrm(nonbag2bag)(inp) shouldBe alphaEqTo(anfPipeline(exp))
-  }
-
-  "emma check" in {
-    val inp = reify {
-      val x = {
-        var c = 100
-        while (c > 1) {
-          c -= 1
-        }
-        c
-      }
-    }
-    val exp = reify { 1 }
-
-    applyXfrm(noop)(inp) shouldBe alphaEqTo(anfPipeline(exp))
   }
 }

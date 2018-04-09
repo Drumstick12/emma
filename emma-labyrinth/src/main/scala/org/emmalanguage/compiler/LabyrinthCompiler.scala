@@ -62,12 +62,19 @@ trait LabyrinthCompiler extends Compiler {
 
         // TODO switch refs on ValDef rhs
         case Attr.inh(vd @ core.ValDef(lhs, rhs), owner :: _)
-          if prePrint(vd) && !meta(vd).all.all.contains(SkipTraversal) && refsKnown(rhs, seen) =>
-
-          vd
+          if !meta(vd).all.all.contains(SkipTraversal) && refsKnown(rhs, seen) =>
+          rhs match {
+            case core.ValRef(sym) if seen.keys.toList.contains (sym) =>
+              val nvr = core.ValRef (seen(sym).get)
+              val ns = newSymbol(owner, "newRef", nvr)
+              val nvd = core.ValDef(ns, nvr)
+              skip(nvd)
+              seen += (lhs -> Some(ns))
+              nvd
+          }
 
         case Attr.inh(vd @ core.ValDef(lhs, rhs), owner :: _)
-          if prePrint(vd) && !meta(vd).all.all.contains(SkipTraversal) && !refsKnown(rhs, seen) =>
+          if !meta(vd).all.all.contains(SkipTraversal) && !refsKnown(rhs, seen) =>
 
           // transform   a = 1   to   db = Databag(Seq(1))
           val seqRhs = core.DefCall(Some(Seq$.ref), Seq$.apply, Seq(rhs.tpe), Seq(Seq(rhs)))
@@ -88,24 +95,19 @@ trait LabyrinthCompiler extends Compiler {
           skip(dummy)
 
           seen += (lhs -> Some(dummySym))
-          postPrint(dummy)
           dummy
 
         case Attr.inh(vr @ core.ValRef(sym), _) =>
-          if (prePrint(vr) && seen.keys.toList.contains(sym)) {
+          if (seen.keys.toList.contains(sym)) {
             val nvr = core.ValRef(seen(sym).get)
             skip(nvr)
-            postPrint(nvr)
             nvr
           } else {
             seen += (sym -> None)
-            postPrint(vr)
             vr
           }
 
       }._tree(tree)
-
-    println("===========")
 
     // second traversal to correct block types
     // Background: scala does not change block types if expression type changes
@@ -113,9 +115,8 @@ trait LabyrinthCompiler extends Compiler {
     api.TopDown.unsafe
       .withOwner
       .transformWith {
-        case Attr.inh(lb @ core.Let(vals, defs, expr), owner :: _) if prePrint(lb) && (lb.tpe != expr.tpe) =>
+        case Attr.inh(lb @ core.Let(vals, defs, expr), owner :: _) if lb.tpe != expr.tpe =>
           val nlb = core.Let(vals, defs, expr)
-          postPrint(nlb)
           nlb
       }._tree(firstRun)
   })
