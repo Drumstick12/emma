@@ -24,7 +24,7 @@ import shapeless.::
 trait LabyrinthCompiler extends Compiler {
 
   import UniverseImplicits._
-  // import API._
+  import API._
 
   lazy val StreamExecutionEnvironment = api.Type[org.apache.flink.streaming.api.scala.StreamExecutionEnvironment]
 
@@ -60,9 +60,8 @@ trait LabyrinthCompiler extends Compiler {
       .withOwner
       .transformWith {
 
-        // TODO switch refs on ValDef rhs
         case Attr.inh(vd @ core.ValDef(lhs, rhs), owner :: _)
-          if !meta(vd).all.all.contains(SkipTraversal) && refsKnown(rhs, seen) =>
+          if prePrint(vd) && !meta(vd).all.all.contains(SkipTraversal) && refsKnown(rhs, seen) =>
           rhs match {
             case core.ValRef(sym) if seen.keys.toList.contains (sym) =>
               val nvr = core.ValRef (seen(sym).get)
@@ -70,11 +69,39 @@ trait LabyrinthCompiler extends Compiler {
               val nvd = core.ValDef(ns, nvr)
               skip(nvd)
               seen += (lhs -> Some(ns))
+              postPrint(nvd)
               nvd
+
+            // TODO DefCalls on ValDef rhs
+            case core.DefCall(tgt, ms, targs, Seq(Seq(arg))) =>
+
+              println("DEFCALL")
+              println(tgt)
+              println(ms)
+              println(targs)
+              println(arg)
+              println
+
+              val lbdaSym = api.ParSym(owner, api.TermName.fresh("lmbda"), arg.tpe)
+
+              val lbda = core.Lambda(Seq(lbdaSym),
+                core.DefCall(tgt, ms, targs, Seq(Seq(core.ParRef(lbdaSym)))))
+              val ndc = core.DefCall(Some(DataBag$.ref), DataBag.map, Seq(tgt.get.tpe), Seq(Seq(lbda)))
+
+              val ns = newSymbol(owner, "db", ndc)
+              val nvd = core.ValDef(ns, ndc)
+              postPrint(nvd)
+              nvd
+
+            // case dc @ core.DefCall(tgt,ms,targs,argss) =>
+            //   vd
+
+            case _ => vd
+
           }
 
         case Attr.inh(vd @ core.ValDef(lhs, rhs), owner :: _)
-          if !meta(vd).all.all.contains(SkipTraversal) && !refsKnown(rhs, seen) =>
+          if prePrint(vd) && !meta(vd).all.all.contains(SkipTraversal) && !refsKnown(rhs, seen) =>
 
           // transform   a = 1   to   db = Databag(Seq(1))
           val seqRhs = core.DefCall(Some(Seq$.ref), Seq$.apply, Seq(rhs.tpe), Seq(Seq(rhs)))
@@ -95,12 +122,14 @@ trait LabyrinthCompiler extends Compiler {
           skip(dummy)
 
           seen += (lhs -> Some(dummySym))
+          postPrint(dummy)
           dummy
 
         case Attr.inh(vr @ core.ValRef(sym), _) =>
-          if (seen.keys.toList.contains(sym)) {
+          if (prePrint(vr) && seen.keys.toList.contains(sym)) {
             val nvr = core.ValRef(seen(sym).get)
             skip(nvr)
+            postPrint(nvr)
             nvr
           } else {
             seen += (sym -> None)
