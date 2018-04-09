@@ -71,4 +71,13 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
 
     applyXfrm(nonbag2bag)(inp) shouldBe alphaEqTo(anfPipeline(exp))
   }
+
+  def add1(x: Int) : Int = x + 1
+
+  "replace defcalls on valdef rhs" in {
+    val inp = reify { val a = 1; val b = add1(a); b}
+    val exp = reify { val a = DataBag(Seq(1)); val b = a.map(e => add1(e)); b}
+
+    applyXfrm(nonbag2bag)(inp) shouldBe alphaEqTo(anfPipeline(exp))
+  }
 }
