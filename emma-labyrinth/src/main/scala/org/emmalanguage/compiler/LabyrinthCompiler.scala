@@ -62,7 +62,7 @@ trait LabyrinthCompiler extends Compiler {
       .transformWith {
 
         case Attr.inh(vd @ core.ValDef(lhs, rhs), owner :: _)
-          if prePrint(vd) && !meta(vd).all.all.contains(SkipTraversal) && refsKnown(rhs, seen) =>
+          if !meta(vd).all.all.contains(SkipTraversal) && refsKnown(rhs, seen) =>
           rhs match {
             case core.ValRef(sym) if seen.keys.toList.contains (sym) =>
               val nvr = core.ValRef (seen(sym).get)
@@ -71,38 +71,38 @@ trait LabyrinthCompiler extends Compiler {
               skip(nvd)
               seen += (lhs -> Some(ns))
               refs += (ns -> nvr)
-              postPrint(nvd)
               nvd
 
-            // TODO DefCalls on ValDef rhs
             case dc @ core.DefCall(tgt, ms, targs, Seq(Seq(vrarg @ core.ValRef(argsym)))) =>
 
               val lbdaSym = api.ParSym(owner, api.TermName.fresh("lmbda"), vrarg.tpe)
-
-              // TODO lmbdaRhs to block!!
-              val lmbdaRhs = ???
+              val lmbdaRhsDC = core.DefCall(tgt, ms, targs, Seq(Seq(core.ParRef(lbdaSym))))
+              val lmbdaRhsDCRefDef = valRefAndDef(owner, "lbdaRhs", lmbdaRhsDC)
+              skip(lmbdaRhsDCRefDef._2)
+              val lmbdaRhs = core.Let(Seq(lmbdaRhsDCRefDef._2), Seq(), lmbdaRhsDCRefDef._1)
               val lmbda = core.Lambda(
                 Seq(lbdaSym),
-                core.DefCall(tgt, ms, targs, Seq(Seq(core.ParRef(lbdaSym))))
+                lmbdaRhs
               )
 
-              val funSym = api.ValSym(owner, api.TermName.fresh("fun"), lmbda.tpe)
+              val funSym = api.ValSym(owner, api.TermName.fresh("fun"), lmbda.tpe.widen)
               val funRefDef = valRefAndDef(funSym, lmbda)
               skip(funRefDef._2)
 
               val ndc = core.DefCall(Some(refs(seen(argsym).get)), DataBag.map, Seq(dc.tpe), Seq(Seq(funRefDef._1)))
               val ns = newSymbol(owner, "dbMap", ndc)
-              seen += (lhs -> Some(ns))
               val ndcRefDef = valRefAndDef(ns, ndc)
               skip(ndcRefDef._2)
 
               // add lambda definition and new defcall to new letblock - eliminated by unnest
               val nlb = core.Let(Seq(funRefDef._2, ndcRefDef._2), Seq(), ndcRefDef._1)
 
-              val nvdRefDef = valRefAndDef(owner, "map", nlb)
+              val nvdSym = api.ValSym(owner, api.TermName.fresh("map"), nlb.tpe.widen)
+              val nvdRefDef = valRefAndDef(nvdSym, nlb)
+              seen += (lhs -> Some(nvdSym))
+              refs += (nvdSym -> nvdRefDef._1)
               skip(nvdRefDef._2)
 
-              postPrint(nvdRefDef._2)
               nvdRefDef._2
 
             case _ => vd
@@ -110,7 +110,7 @@ trait LabyrinthCompiler extends Compiler {
           }
 
         case Attr.inh(vd @ core.ValDef(lhs, rhs), owner :: _)
-          if prePrint(vd) && !meta(vd).all.all.contains(SkipTraversal) && !refsKnown(rhs, seen) =>
+          if !meta(vd).all.all.contains(SkipTraversal) && !refsKnown(rhs, seen) =>
 
           // transform   a = 1   to   db = Databag(Seq(1))
           val seqRhs = core.DefCall(Some(Seq$.ref), Seq$.apply, Seq(rhs.tpe), Seq(Seq(rhs)))
@@ -133,15 +133,13 @@ trait LabyrinthCompiler extends Compiler {
 
           seen += (lhs -> Some(dbSym))
           refs += (dbSym -> dbRef)
-          postPrint(db)
           db
 
         case Attr.inh(vr @ core.ValRef(sym), _) =>
-          if (prePrint(vr) && seen.keys.toList.contains(sym)) {
+          if (seen.keys.toList.contains(sym)) {
             val nvr = core.ValRef(seen(sym).get)
             skip(nvr)
             refs += (sym -> nvr)
-            postPrint(nvr)
             nvr
           } else {
             seen += (sym -> None)
@@ -150,25 +148,16 @@ trait LabyrinthCompiler extends Compiler {
 
       }._tree(tree)
 
-    println("===========")
-    prePrint(firstRun)
-    println("===========")
-
     // second traversal to correct block types
     // Background: scala does not change block types if expression type changes
     // (see internal/Trees.scala - Tree.copyAttrs)
     val secondRun = api.TopDown.unsafe
       .withOwner
       .transformWith {
-        case Attr.inh(lb @ core.Let(vals, defs, expr), owner :: _) if prePrint(lb) && lb.tpe != expr.tpe =>
+        case Attr.inh(lb @ core.Let(vals, defs, expr), owner :: _) if lb.tpe != expr.tpe =>
           val nlb = core.Let(vals, defs, expr)
-          postPrint(nlb)
           nlb
       }._tree(firstRun)
-
-    println("===========")
-    prePrint(secondRun)
-    println("===========")
 
     secondRun
 
