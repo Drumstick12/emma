@@ -55,6 +55,7 @@ trait LabyrinthCompiler extends Compiler {
   // non-bag variables to DataBag
   val nonbag2bag = TreeTransform("nonbag2bag", (tree: u.Tree) => {
     val seen = scala.collection.mutable.Map[u.TermSymbol, Option[u.TermSymbol]]()
+    val refs = scala.collection.mutable.Map[u.TermSymbol, u.Ident]()
 
     val firstRun = api.TopDown.unsafe
       .withOwner
@@ -69,32 +70,40 @@ trait LabyrinthCompiler extends Compiler {
               val nvd = core.ValDef(ns, nvr)
               skip(nvd)
               seen += (lhs -> Some(ns))
+              refs += (ns -> nvr)
               postPrint(nvd)
               nvd
 
             // TODO DefCalls on ValDef rhs
-            case core.DefCall(tgt, ms, targs, Seq(Seq(arg))) =>
+            case dc @ core.DefCall(tgt, ms, targs, Seq(Seq(vrarg @ core.ValRef(argsym)))) =>
 
-              println("DEFCALL")
-              println(tgt)
-              println(ms)
-              println(targs)
-              println(arg)
-              println
+              val lbdaSym = api.ParSym(owner, api.TermName.fresh("lmbda"), vrarg.tpe)
 
-              val lbdaSym = api.ParSym(owner, api.TermName.fresh("lmbda"), arg.tpe)
+              // TODO lmbdaRhs to block!!
+              val lmbdaRhs = ???
+              val lmbda = core.Lambda(
+                Seq(lbdaSym),
+                core.DefCall(tgt, ms, targs, Seq(Seq(core.ParRef(lbdaSym))))
+              )
 
-              val lbda = core.Lambda(Seq(lbdaSym),
-                core.DefCall(tgt, ms, targs, Seq(Seq(core.ParRef(lbdaSym)))))
-              val ndc = core.DefCall(Some(DataBag$.ref), DataBag.map, Seq(tgt.get.tpe), Seq(Seq(lbda)))
+              val funSym = api.ValSym(owner, api.TermName.fresh("fun"), lmbda.tpe)
+              val funRefDef = valRefAndDef(funSym, lmbda)
+              skip(funRefDef._2)
 
-              val ns = newSymbol(owner, "db", ndc)
-              val nvd = core.ValDef(ns, ndc)
-              postPrint(nvd)
-              nvd
+              val ndc = core.DefCall(Some(refs(seen(argsym).get)), DataBag.map, Seq(dc.tpe), Seq(Seq(funRefDef._1)))
+              val ns = newSymbol(owner, "dbMap", ndc)
+              seen += (lhs -> Some(ns))
+              val ndcRefDef = valRefAndDef(ns, ndc)
+              skip(ndcRefDef._2)
 
-            // case dc @ core.DefCall(tgt,ms,targs,argss) =>
-            //   vd
+              // add lambda definition and new defcall to new letblock - eliminated by unnest
+              val nlb = core.Let(Seq(funRefDef._2, ndcRefDef._2), Seq(), ndcRefDef._1)
+
+              val nvdRefDef = valRefAndDef(owner, "map", nlb)
+              skip(nvdRefDef._2)
+
+              postPrint(nvdRefDef._2)
+              nvdRefDef._2
 
             case _ => vd
 
@@ -115,20 +124,23 @@ trait LabyrinthCompiler extends Compiler {
           skip(databagRefDef._2)
 
           // dummy ValDef with letblock on rhs - gonna be eliminated by unnest
-          val dummyRhs = core.Let(Seq(seqRefDef._2, databagRefDef._2), Seq(), databagRefDef._1)
+          val dbRhs = core.Let(Seq(seqRefDef._2, databagRefDef._2), Seq(), databagRefDef._1)
 
-          val dummySym = newSymbol(owner, "db", dummyRhs)
-          val dummy = core.ValDef(dummySym, dummyRhs)
-          skip(dummy)
+          val dbSym = newSymbol(owner, "db", dbRhs)
+          val dbRef = core.ValRef(dbSym)
+          val db = core.ValDef(dbSym, dbRhs)
+          skip(db)
 
-          seen += (lhs -> Some(dummySym))
-          postPrint(dummy)
-          dummy
+          seen += (lhs -> Some(dbSym))
+          refs += (dbSym -> dbRef)
+          postPrint(db)
+          db
 
         case Attr.inh(vr @ core.ValRef(sym), _) =>
           if (prePrint(vr) && seen.keys.toList.contains(sym)) {
             val nvr = core.ValRef(seen(sym).get)
             skip(nvr)
+            refs += (sym -> nvr)
             postPrint(nvr)
             nvr
           } else {
@@ -138,16 +150,28 @@ trait LabyrinthCompiler extends Compiler {
 
       }._tree(tree)
 
+    println("===========")
+    prePrint(firstRun)
+    println("===========")
+
     // second traversal to correct block types
     // Background: scala does not change block types if expression type changes
     // (see internal/Trees.scala - Tree.copyAttrs)
-    api.TopDown.unsafe
+    val secondRun = api.TopDown.unsafe
       .withOwner
       .transformWith {
-        case Attr.inh(lb @ core.Let(vals, defs, expr), owner :: _) if lb.tpe != expr.tpe =>
+        case Attr.inh(lb @ core.Let(vals, defs, expr), owner :: _) if prePrint(lb) && lb.tpe != expr.tpe =>
           val nlb = core.Let(vals, defs, expr)
+          postPrint(nlb)
           nlb
       }._tree(firstRun)
+
+    println("===========")
+    prePrint(secondRun)
+    println("===========")
+
+    secondRun
+
   })
 
   def prePrint(t: u.Tree) : Boolean = {
@@ -182,6 +206,10 @@ trait LabyrinthCompiler extends Compiler {
 
   private def valRefAndDef(own: u.Symbol, name: String, rhs: u.Tree): (u.Ident, u.ValDef) = {
     val sbl = api.ValSym(own, api.TermName.fresh(name), rhs.tpe.widen)
+    (core.Ref(sbl), core.ValDef(sbl, rhs))
+  }
+
+  private def valRefAndDef(sbl: u.TermSymbol, rhs: u.Tree): (u.Ident, u.ValDef) = {
     (core.Ref(sbl), core.ValDef(sbl, rhs))
   }
 
