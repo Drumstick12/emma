@@ -57,6 +57,10 @@ trait LabyrinthCompiler extends Compiler {
     val seen = scala.collection.mutable.Map[u.TermSymbol, Option[u.TermSymbol]]()
     val refs = scala.collection.mutable.Map[u.TermSymbol, u.Ident]()
 
+    println("==0tree==")
+    println(tree)
+    println("==0tree==")
+
     val firstRun = api.TopDown.unsafe
       .withOwner
       .transformWith {
@@ -110,7 +114,7 @@ trait LabyrinthCompiler extends Compiler {
           }
 
         case Attr.inh(vd @ core.ValDef(lhs, rhs), owner :: _)
-          if !meta(vd).all.all.contains(SkipTraversal) && !refsKnown(rhs, seen) =>
+          if prePrint(vd) && !meta(vd).all.all.contains(SkipTraversal) && !refsKnown(rhs, seen) && !isDatabag(vd) =>
 
           // transform   a = 1   to   db = Databag(Seq(1))
           val seqRhs = core.DefCall(Some(Seq$.ref), Seq$.apply, Seq(rhs.tpe), Seq(Seq(rhs)))
@@ -133,6 +137,7 @@ trait LabyrinthCompiler extends Compiler {
 
           seen += (lhs -> Some(dbSym))
           refs += (dbSym -> dbRef)
+          postPrint(db)
           db
 
         case Attr.inh(vr @ core.ValRef(sym), _) =>
@@ -154,7 +159,7 @@ trait LabyrinthCompiler extends Compiler {
     val secondRun = api.TopDown.unsafe
       .withOwner
       .transformWith {
-        case Attr.inh(lb @ core.Let(vals, defs, expr), owner :: _) if lb.tpe != expr.tpe =>
+        case Attr.inh(lb @ core.Let(vals, defs, expr), _) if lb.tpe != expr.tpe =>
           val nlb = core.Let(vals, defs, expr)
           nlb
       }._tree(firstRun)
@@ -207,6 +212,27 @@ trait LabyrinthCompiler extends Compiler {
     lazy val sym = api.Sym[Seq.type].asModule
 
     val apply = op("apply")
+
+    override def ops = Set()
+  }
+
+  object DB {
+
+    def singDB[A: org.emmalanguage.api.Meta](e: A): org.emmalanguage.api.DataBag[A] = {
+      org.emmalanguage.api.DataBag(Seq(e))
+    }
+
+    def fromSingDB[A: org.emmalanguage.api.Meta](db: org.emmalanguage.api.DataBag[Seq[A]]):
+    org.emmalanguage.api.DataBag[A] = {
+      org.emmalanguage.api.DataBag(db.collect().head)
+    }
+  }
+
+  object DB$ extends ModuleAPI {
+    lazy val sym = api.Sym[DB.type].asModule
+
+    val singDB = op("singDB")
+    val fromSingDB = op("fromSingDB")
 
     override def ops = Set()
   }
