@@ -117,6 +117,7 @@ trait LabyrinthCompiler extends Compiler {
           if prePrint(vd) && !meta(vd).all.all.contains(SkipTraversal) && !refsKnown(rhs, seen) && !isDatabag(vd) =>
 
           // transform   a = 1   to   db = Databag(Seq(1))
+          // TODO use singleton
           val seqRhs = core.DefCall(Some(Seq$.ref), Seq$.apply, Seq(rhs.tpe), Seq(Seq(rhs)))
           val seqRefDef = valRefAndDef(owner, "Seq", seqRhs)
           skip(seqRefDef._2)
@@ -190,8 +191,7 @@ trait LabyrinthCompiler extends Compiler {
   }
 
   private def isDatabag(tree: u.Tree): Boolean =  {
-    if (tree.tpe == API.DataBag.tpe) return true
-    false
+    tree.tpe == API.DataBag.tpe
   }
 
   private def newSymbol(own: u.Symbol, name: String, rhs: u.Tree): u.TermSymbol = {
@@ -226,15 +226,18 @@ trait LabyrinthCompiler extends Compiler {
     org.emmalanguage.api.DataBag[A] = {
       org.emmalanguage.api.DataBag(db.collect().head)
     }
+
   }
 
   object DB$ extends ModuleAPI {
+
     lazy val sym = api.Sym[DB.type].asModule
 
     val singDB = op("singDB")
     val fromSingDB = op("fromSingDB")
 
     override def ops = Set()
+
   }
 
   case class SkipTraversal()
