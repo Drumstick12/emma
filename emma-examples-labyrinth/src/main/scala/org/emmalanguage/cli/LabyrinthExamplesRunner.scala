@@ -29,7 +29,7 @@ import org.apache.flink.streaming.api.scala.StreamExecutionEnvironment
 import scala.reflect.ClassTag
 //import examples.graphs._
 //import examples.graphs.model._
-import examples.text._
+//import examples.text._
 //import util.Iso
 
 object LabyrinthExamplesRunner extends LabyrinthAware {
@@ -153,14 +153,15 @@ object LabyrinthExamplesRunner extends LabyrinthAware {
 //    }
 
   def wordCount(c: Config)(implicit flink: StreamExecutionEnvironment): Unit =
-    emma.onLabyrinth {
-      // read the input files and split them into lowercased words
-      val docs = DataBag.readText(c.input)
-      // parse and count the words
-      val counts = WordCount(docs)
-      // write the results into a file
-      counts.writeCSV(c.output, c.csv)
-    }
+//    emma.onLabyrinth {
+//      // read the input files and split them into lowercased words
+//      val docs = DataBag.readText(c.input)
+//      // parse and count the words
+//      val counts = WordCount(docs)
+//      // write the results into a file
+//      counts.writeCSV(c.output, c.csv)
+//    }
+    None
 
   // ---------------------------------------------------------------------------
   // Helper methods
