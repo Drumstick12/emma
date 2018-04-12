@@ -57,35 +57,52 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
   "all tests" - {
     "ValDef only" in {
       val inp = reify { val a = 1}
-      val exp = reify { val a = DataBag(Seq(1))}
+      val exp = reify { val a = DB.singBag(1)}
+
+      applyXfrm(nonbag2bag)(inp) shouldBe alphaEqTo(anfPipeline(exp))
+    }
+
+    "ValDef only, SingBag rhs" in {
+      val inp = reify { val a = 1; val b = DB.singBag(2)}
+      val exp = reify { val a = DB.singBag(1); val b = DB.singBag(2)}
 
       applyXfrm(nonbag2bag)(inp) shouldBe alphaEqTo(anfPipeline(exp))
     }
 
     "ValDef only, DataBag rhs" in {
-      val inp = reify { val a = 1; val b = DataBag(Seq(2))}
-      val exp = reify { val a = DataBag(Seq(1)); val b = DataBag(Seq(2))}
+      val inp = reify
+      {
+        val a = 1
+        val b = DataBag(Seq(2))
+      }
+      val exp = reify
+      {
+        val a = DB.singBag(1)
+        val s = Seq(2)
+        val sb = DB.singBag(s)
+        val b = DB.fromSingBag(sb)
+      }
 
       applyXfrm(nonbag2bag)(inp) shouldBe alphaEqTo(anfPipeline(exp))
     }
 
     "replace refs simple" in {
       val inp = reify { val a = 1; a}
-      val exp = reify { val a = DataBag(Seq(1)); a}
+      val exp = reify { val a = DB.singBag(1); a}
 
       applyXfrm(nonbag2bag)(inp) shouldBe alphaEqTo(anfPipeline(exp))
     }
 
     "replace refs on valdef rhs" in {
       val inp = reify { val a = 1; val b = a; b}
-      val exp = reify { val a = DataBag(Seq(1)); a}
+      val exp = reify { val a = DB.singBag(1); val b = a; b}
 
       applyXfrm(nonbag2bag)(inp) shouldBe alphaEqTo(anfPipeline(exp))
     }
 
     "replace defcalls on valdef rhs" in {
       val inp = reify { val a = 1; val b = add1(a); b}
-      val exp = reify { val a = DataBag(Seq(1)); val b = a.map(e => add1(e)); b}
+      val exp = reify { val a = DB.singBag(1); val b = a.map(e => add1(e)); b}
 
       applyXfrm(nonbag2bag)(inp) shouldBe alphaEqTo(anfPipeline(exp))
     }
