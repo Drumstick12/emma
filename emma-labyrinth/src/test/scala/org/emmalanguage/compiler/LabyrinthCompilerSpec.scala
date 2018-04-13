@@ -57,7 +57,7 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
   "all tests" - {
     "ValDef only" in {
       val inp = reify { val a = 1}
-      val exp = reify { val a = DB.singBag(1)}
+      val exp = reify { val a = DB.singSrc( () => 1)}
 
       applyXfrm(nonbag2bag)(inp) shouldBe alphaEqTo(anfPipeline(exp))
     }
@@ -77,7 +77,8 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
       }
       val exp = reify
       {
-        val a = DB.singBag(1)
+        val xa = 1
+        val a = DB.singBag(xa)
         val s = Seq(2)
         val sb = DB.singBag(s)
         val b = DB.fromSingBag(sb)
