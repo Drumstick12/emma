@@ -154,6 +154,8 @@ trait LabyrinthCompiler extends Compiler {
         case Attr.inh(vd @ core.ValDef(lhs, rhs), owner :: _)
           if prePrint(vd) && !meta(vd).all.all.contains(SkipTraversal) && !refsKnown(rhs, seen) && !isDatabag(rhs) =>
 
+          // create lambda () => rhs
+
           val dbRhs = core.DefCall(Some(DB$.ref), DB$.singBag, Seq(rhs.tpe), Seq(Seq(rhs)))
           val dbSym = newSymbol(owner, "db", dbRhs)
           val dbRef = core.ValRef(dbSym)
@@ -264,6 +266,10 @@ object DB {
 
   def singBag[A: org.emmalanguage.api.Meta](e: A): org.emmalanguage.api.DataBag[A] = {
     org.emmalanguage.api.DataBag(Seq(e))
+  }
+
+  def singSrc[A: org.emmalanguage.api.Meta](l: => A): org.emmalanguage.api.DataBag[A] = {
+    org.emmalanguage.api.DataBag(Seq(l))
   }
 
   def fromSingBag[A: org.emmalanguage.api.Meta](db: org.emmalanguage.api.DataBag[Seq[A]]):
