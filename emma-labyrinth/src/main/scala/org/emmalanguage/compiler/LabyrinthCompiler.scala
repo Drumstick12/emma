@@ -55,8 +55,9 @@ trait LabyrinthCompiler extends Compiler {
   // non-bag variables to DataBag
   val nonbag2bag = TreeTransform("nonbag2bag", (tree: u.Tree) => {
     val seen = scala.collection.mutable.Map[u.TermSymbol, Option[u.TermSymbol]]()
-    val refs = scala.collection.mutable.Map[u.TermSymbol, u.Ident]()
-    val defs = scala.collection.mutable.Map[u.Ident, u.ValDef]()
+    // val refs = scala.collection.mutable.Map[u.TermSymbol, u.Ident]()
+    // val defs = scala.collection.mutable.Map[u.Ident, u.ValDef]()
+    val defs = scala.collection.mutable.Map[u.TermSymbol, u.ValDef]()
 
     println("___")
     println(LabyrinthCompiler.this)
@@ -69,18 +70,18 @@ trait LabyrinthCompiler extends Compiler {
       .transformWith {
 
         case Attr.inh(vd @ core.ValDef(lhs, rhs), owner :: _)
-          if !meta(vd).all.all.contains(SkipTraversal) && refsKnown(rhs, seen) =>
+          if prePrint(vd) && !meta(vd).all.all.contains(SkipTraversal) && refsKnown(rhs, seen) =>
           rhs match {
             case core.ValRef(sym) if seen.keys.toList.contains (sym) =>
-              val nvr = refs(seen(sym).get)
+              val nvr = core.ValRef(seen(sym).get)
               val ns = newSymbol(owner, lhs.name.toString, nvr)
               val nvd = core.ValDef(ns, nvr)
               skip(nvd)
               seen += (lhs -> Some(ns))
-              refs += (ns -> nvr)
+              // refs += (ns -> nvr)
               nvd
 
-            case dc @ core.DefCall(tgt, ms, targs, Seq(Seq(vrarg @ core.ValRef(argsym)))) =>
+            case dc @ core.DefCall(tgt, ms, targs, Seq(Seq(dcarg @ core.ValRef(argsym)))) =>
 
               // first check if the rhs is a singleton bag due to anf and labyrinth transoformation
               // {{{
@@ -88,12 +89,21 @@ trait LabyrinthCompiler extends Compiler {
               //      val anf$r1 = Seq.apply[Int](2);     ==> Databag[Seq[Int]]
               //      val b = DataBag.apply[Int](anf$r1); ==> Databag[Int] instead of Databag[Databag[Seq[Int]]]
               // }}}
-              val argReplRef = refs(seen(argsym).get)
-              val argReplDef = defs(argReplRef)
+              // val argReplRef = refs(seen(argsym).get)
+              val argSymRepl = seen(argsym).get
+              val argReplRef = core.ValRef(argSymRepl)
+              val argReplDef = defs(argSymRepl)
+              // val argReplIsSingBag = false
               val argReplIsSingBag = argReplDef.rhs match {
-                case core.DefCall(_, DB$.singBag, _, Seq(Seq(vrarg2))) =>
-                  println(vrarg2)
-                  true
+                //case core.DefCall(_, DB$.singSrc, _, Seq(Seq(vrarg2))) =>
+                  //println(vrarg2)
+                case let @ core.Let(_, _, core.ValRef(sym)) =>
+                  defs(sym) match {
+                  case core.DefCall(_, DB$.singSrc, _, Seq(Seq(vrarg2))) =>
+                    println(vrarg2)
+                    true
+                  case _ => false
+                }
                 case _ => false
               }
 
@@ -110,13 +120,13 @@ trait LabyrinthCompiler extends Compiler {
                 skip(db)
 
                 seen += (lhs -> Some(dbSym))
-                refs += (dbSym -> dbRef)
-                defs += (dbRef -> db)
-                println
+                // refs += (dbSym -> dbRef)
+                // defs += (dbRef -> db)
+                defs += (dbSym -> db)
                 db
               } else {
 
-                val lbdaSym = api.ParSym(owner, api.TermName.fresh("lmbda"), vrarg.tpe)
+                val lbdaSym = api.ParSym(owner, api.TermName.fresh("lmbda"), dcarg.tpe)
                 val lmbdaRhsDC = core.DefCall(tgt, ms, targs, Seq(Seq(core.ParRef(lbdaSym))))
                 val lmbdaRhsDCRefDef = valRefAndDef(owner, "lbdaRhs", lmbdaRhsDC)
                 skip(lmbdaRhsDCRefDef._2)
@@ -141,7 +151,7 @@ trait LabyrinthCompiler extends Compiler {
                 val nvdSym = api.ValSym(owner, api.TermName.fresh("map"), nlb.tpe.widen)
                 val nvdRefDef = valRefAndDef(nvdSym, nlb)
                 seen += (lhs -> Some(nvdSym))
-                refs += (nvdSym -> nvdRefDef._1)
+                // refs += (nvdSym -> nvdRefDef._1)
                 skip(nvdRefDef._2)
 
                 nvdRefDef._2
@@ -155,28 +165,43 @@ trait LabyrinthCompiler extends Compiler {
           if prePrint(vd) && !meta(vd).all.all.contains(SkipTraversal) && !refsKnown(rhs, seen) && !isDatabag(rhs) =>
 
           // create lambda () => rhs
+          val rhsSym = newSymbol(owner, "lbda", rhs)
+          val rhsRefDef = valRefAndDef(rhsSym, rhs)
+          skip(rhsRefDef._2)
+          val lRhs = core.Let(Seq(rhsRefDef._2), Seq(), rhsRefDef._1)
+          val l = core.Lambda(Seq(), lRhs)
+          val lSym = newSymbol(owner, "fun", l)
+          val lRefDef = valRefAndDef(lSym, l)
+          skip(lRefDef._2)
 
-          val dbRhs = core.DefCall(Some(DB$.ref), DB$.singBag, Seq(rhs.tpe), Seq(Seq(rhs)))
-          val dbSym = newSymbol(owner, "db", dbRhs)
-          val dbRef = core.ValRef(dbSym)
+          val dbRhsDC = core.DefCall(Some(DB$.ref), DB$.singSrc, Seq(rhs.tpe), Seq(Seq(lRefDef._1)))
+          val dbRhsDCSym = newSymbol(owner, "debug", dbRhsDC)
+          val dbRhsDCRefDef = valRefAndDef(dbRhsDCSym, dbRhsDC)
+          // refs += (dbRhsDCSym -> dbRhsDCRefDef._1)
+          // defs += (dbRhsDCRefDef._1 -> dbRhsDCRefDef._2)
+          defs += (dbRhsDCSym -> dbRhsDCRefDef._2)
+          skip(dbRhsDCRefDef._2)
+          val dbRhs = core.Let(Seq(lRefDef._2, dbRhsDCRefDef._2), Seq(), dbRhsDCRefDef._1)
+          val dbSym = newSymbol(owner, "db", dbRhsDC)
+          // val dbRef = core.ValRef(dbSym)
           val db = core.ValDef(dbSym, dbRhs)
           skip(db)
 
           seen += (lhs -> Some(dbSym))
-          refs += (dbSym -> dbRef)
-          defs += (dbRef -> db)
-          println
+          // refs += (dbSym -> dbRef)
+          // defs += (dbRef -> db)
+          defs += (dbSym -> db)
           postPrint(db)
           db
 
         case Attr.inh(vr @ core.ValRef(sym), _) =>
-          if (seen.keys.toList.contains(sym)) {
+          if (prePrint(vr) && seen.keys.toList.contains(sym)) {
             val nvr = core.ValRef(seen(sym).get)
             skip(nvr)
-            refs += (sym -> nvr)
+            // refs += (sym -> nvr)
             nvr
           } else {
-            seen += (sym -> None)
+            //  seen += (sym -> None)
             vr
           }
 
@@ -188,8 +213,8 @@ trait LabyrinthCompiler extends Compiler {
     val secondRun = api.TopDown.unsafe
       .withOwner
       .transformWith {
-        case Attr.inh(lb @ core.Let(vals, defs, expr), _) if lb.tpe != expr.tpe =>
-          val nlb = core.Let(vals, defs, expr)
+        case Attr.inh(lb @ core.Let(valdefs, defdefs, expr), _) if lb.tpe != expr.tpe =>
+          val nlb = core.Let(valdefs, defdefs, expr)
           nlb
       }._tree(firstRun)
 
@@ -229,11 +254,11 @@ trait LabyrinthCompiler extends Compiler {
 
   private def valRefAndDef(own: u.Symbol, name: String, rhs: u.Tree): (u.Ident, u.ValDef) = {
     val sbl = api.ValSym(own, api.TermName.fresh(name), rhs.tpe.widen)
-    (core.Ref(sbl), core.ValDef(sbl, rhs))
+    (core.ValRef(sbl), core.ValDef(sbl, rhs))
   }
 
   private def valRefAndDef(sbl: u.TermSymbol, rhs: u.Tree): (u.Ident, u.ValDef) = {
-    (core.Ref(sbl), core.ValDef(sbl, rhs))
+    (core.ValRef(sbl), core.ValDef(sbl, rhs))
   }
 
   object Seq$ extends ModuleAPI {
@@ -250,6 +275,7 @@ trait LabyrinthCompiler extends Compiler {
     lazy val sym = api.Sym[DB.type].asModule
 
     val singBag = op("singBag")
+    val singSrc = op("singSrc")
     val fromSingBag = op("fromSingBag")
 
     override def ops = Set()
@@ -268,11 +294,16 @@ object DB {
     org.emmalanguage.api.DataBag(Seq(e))
   }
 
-  def singSrc[A: org.emmalanguage.api.Meta](l: => A): org.emmalanguage.api.DataBag[A] = {
-    org.emmalanguage.api.DataBag(Seq(l))
+  def singSrc[A: org.emmalanguage.api.Meta](l: () => A): org.emmalanguage.api.DataBag[A] = {
+    org.emmalanguage.api.DataBag(Seq(l()))
   }
 
   def fromSingBag[A: org.emmalanguage.api.Meta](db: org.emmalanguage.api.DataBag[Seq[A]]):
+  org.emmalanguage.api.DataBag[A] = {
+    org.emmalanguage.api.DataBag(db.collect().head)
+  }
+
+  def fromSingSrc[A: org.emmalanguage.api.Meta](db: org.emmalanguage.api.DataBag[Seq[A]]):
   org.emmalanguage.api.DataBag[A] = {
     org.emmalanguage.api.DataBag(db.collect().head)
   }
