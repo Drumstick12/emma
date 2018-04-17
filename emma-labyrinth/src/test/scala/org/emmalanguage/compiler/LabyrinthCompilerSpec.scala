@@ -74,9 +74,15 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
       applyXfrm(nonbag2bag)(inp) shouldBe alphaEqTo(anfPipeline(exp))
     }
 
-    "ValDef only, SingBag rhs" in {
-      val inp = reify { val a = 1; val b = DB.singBag(2)}
-      val exp = reify { val a = DB.singBag(1); val b = DB.singBag(2)}
+    "ValDef only, SingSrc rhs" in {
+      val inp = reify {
+        val a = 1;
+        val b = DB.singSrc(() => { val tmp = 2; tmp })
+      }
+      val exp = reify {
+        val a = DB.singSrc(() => { val tmp = 1; tmp });
+        val b = DB.singSrc(() => { val tmp = 2; tmp })
+      }
 
       applyXfrm(nonbag2bag)(inp) shouldBe alphaEqTo(anfPipeline(exp))
     }
@@ -89,11 +95,9 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
       }
       val exp = reify
       {
-        val xa = 1
-        val a = DB.singSrc(() => xa)
-        val s = Seq(2)
-        val sb = DB.singSrc(() => s)
-        val b = DB.fromSingSrc(sb)
+        val a = DB.singSrc(() => { val tmp = 1; tmp })
+        val s = DB.singSrc(() => { val tmp = Seq(2); tmp })
+        val sb = DB.fromSingSrc(s)
       }
 
       applyXfrm(nonbag2bag)(inp) shouldBe alphaEqTo(anfPipeline(exp))
@@ -101,14 +105,53 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
 
     "replace refs simple" in {
       val inp = reify { val a = 1; a}
-      val exp = reify { val a = DB.singBag(1); a}
+      val exp = reify { val a = DB.singSrc(() => { val tmp = 1; tmp }); a}
 
       applyXfrm(nonbag2bag)(inp) shouldBe alphaEqTo(anfPipeline(exp))
     }
 
     "replace defcalls on valdef rhs" in {
-      val inp = reify { val a = 1; val b = add1(a); b}
-      val exp = reify { val a = DB.singBag(1); val b = a.map(e => add1(e)); b}
+      val inp = reify {
+        val a = 1;
+        val b = add1(a);
+        b
+      }
+      val exp = reify {
+        val a = DB.singSrc(() => { val tmp = 1; tmp });
+        val b = a.map(e => add1(e));
+        b
+      }
+
+      applyXfrm(nonbag2bag)(inp) shouldBe alphaEqTo(anfPipeline(exp))
+    }
+
+    "test42" in {
+      val inp = reify {
+        val a = Seq(1,2,3)
+        val fun = (e: Int) => add1(e)
+        val b = a.map(fun)
+        b
+      }
+      val exp = reify {
+        val a = DB.singSrc(() => { val tmp = Seq(1,2,3); tmp })
+        val b = a.map(e => e.map(ie => add1(ie)))
+        b
+      }
+
+      applyXfrm(nonbag2bag)(inp) shouldBe alphaEqTo(anfPipeline(exp))
+    }
+
+
+
+    "test with some methods" in {
+      val inp = reify {
+        val a = DataBag(Seq((a: Int) => add1(a)));
+        val b = a.map(f => f(1));
+        b
+      }
+      val exp = reify {
+        1
+      }
 
       applyXfrm(nonbag2bag)(inp) shouldBe alphaEqTo(anfPipeline(exp))
     }
