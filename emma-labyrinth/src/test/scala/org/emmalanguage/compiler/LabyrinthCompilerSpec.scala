@@ -127,15 +127,13 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
 
     "test42" in {
       val inp = reify {
-        val a = Seq(1,2,3)
-        val fun = (e: Int) => add1(e)
-        val b = a.map(fun)
-        b
+        val a = 1
+        val b = 2
+        val c = a + b
       }
       val exp = reify {
-        val a = DB.singSrc(() => { val tmp = Seq(1,2,3); tmp })
-        val b = a.map(e => e.map(ie => add1(ie)))
-        b
+        val a = DB.singSrc(() => { val tmp = 1; tmp })
+        val b = DB.singSrc(() => { val tmp = 2; tmp })
       }
 
       applyXfrm(nonbag2bag)(inp) shouldBe alphaEqTo(anfPipeline(exp))

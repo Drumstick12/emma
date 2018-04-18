@@ -70,7 +70,8 @@ trait LabyrinthCompiler extends Compiler {
       .transformWith {
 
         case Attr.inh(vd @ core.ValDef(lhs, rhs), owner :: _)
-          if prePrint(vd) && !meta(vd).all.all.contains(SkipTraversal) && refsKnown(rhs, seen) && !isFun(lhs) =>
+          if prePrint(vd) && !meta(vd).all.all.contains(SkipTraversal)
+            && refsSeen(rhs, seen) && !isFun(lhs) && !isFun(owner) =>
           rhs match {
             case core.ValRef(sym) if seen.keys.toList.contains (sym) =>
               val nvr = core.ValRef(seen(sym).get)
@@ -81,15 +82,14 @@ trait LabyrinthCompiler extends Compiler {
               // refs += (ns -> nvr)
               nvd
 
+            // first check if the rhs is a singleton bag due to anf and labyrinth transformation
+            // {{{
+            //      val a = 1;                          ==> Databag[Int]
+            //      val anf$r1 = Seq.apply[Int](2);     ==> Databag[Seq[Int]]
+            //      val b = DataBag.apply[Int](anf$r1); ==> Databag[Int] instead of Databag[Databag[Seq[Int]]]
+            // }}}
+            // val argReplRef = refs(seen(argsym).get)
             case dc @ core.DefCall(tgt, DataBag$.apply, targs, Seq(Seq(dcarg @ core.ValRef(argsym)))) =>
-
-              // first check if the rhs is a singleton bag due to anf and labyrinth transoformation
-              // {{{
-              //      val a = 1;                          ==> Databag[Int]
-              //      val anf$r1 = Seq.apply[Int](2);     ==> Databag[Seq[Int]]
-              //      val b = DataBag.apply[Int](anf$r1); ==> Databag[Int] instead of Databag[Databag[Seq[Int]]]
-              // }}}
-              // val argReplRef = refs(seen(argsym).get)
               val argSymRepl = seen(argsym).get
               val argReplRef = core.ValRef(argSymRepl)
               val argReplDef = defs(argSymRepl)
@@ -128,7 +128,7 @@ trait LabyrinthCompiler extends Compiler {
                 vd
               }
 
-            case dc @ core.DefCall(tgt, ms, targs, Seq(Seq(dcarg @ core.ValRef(argsym)))) =>
+            case dc @ core.DefCall(tgt, ms, targs, Seq(Seq(dcarg @ core.ValRef(argsym)))) if !refSeen(tgt, seen) =>
               val argSymRepl = seen(argsym).get
               val argReplRef = core.ValRef(argSymRepl)
               val argReplDef = defs(argSymRepl)
@@ -163,12 +163,22 @@ trait LabyrinthCompiler extends Compiler {
 
               nvdRefDef._2
 
-            case _ => vd
+            // TODO cross combination of two arguments
+            case dc @ core.DefCall(tgt, ms, targs, args) =>
+              print(tgt, ms, targs, args)
+              val nms = Ops.cross
+              vd
+
+            case _ => {
+              println
+              vd
+            }
 
           }
 
         case Attr.inh(vd @ core.ValDef(lhs, rhs), owner :: _)
-          if prePrint(vd) && !meta(vd).all.all.contains(SkipTraversal) && !refsKnown(rhs, seen) && !isDatabag(rhs) =>
+          if prePrint(vd) && !meta(vd).all.all.contains(SkipTraversal)
+            && !refsSeen(rhs, seen) && !isDatabag(rhs) && !isFun(lhs) && !isFun(owner) =>
 
           // create lambda () => rhs
           val rhsSym = newSymbol(owner, "lbda", rhs)
@@ -246,10 +256,24 @@ trait LabyrinthCompiler extends Compiler {
     println(t.tpe)
   }
 
-  def refsKnown(t: u.Tree, m: scala.collection.mutable.Map[u.TermSymbol, Option[u.TermSymbol]]) : Boolean = {
+  def refsSeen(t: u.Tree, m: scala.collection.mutable.Map[u.TermSymbol, Option[u.TermSymbol]]) : Boolean = {
     val refNames = t.collect{ case vr @ core.ValRef(_) => vr }.map(_.name)
     val seenNames = m.keys.toSeq.map(_.name)
     refNames.foldLeft(false)((a,b) => a || seenNames.contains(b))
+  }
+
+  def refSeen(t: Option[u.Tree], m: scala.collection.mutable.Map[u.TermSymbol, Option[u.TermSymbol]]): Boolean = {
+    if (t.nonEmpty) {
+      t.get match {
+        case core.ValRef(sym) => {
+          println
+          m.keys.toList.contains(sym)
+        }
+        case _ => false
+      }
+    } else {
+      false
+    }
   }
 
   private def isDatabag(tree: u.Tree): Boolean = {
@@ -257,6 +281,7 @@ trait LabyrinthCompiler extends Compiler {
   }
 
   def isFun(sym: u.TermSymbol) = api.Sym.funs(sym.info.dealias.widen.typeSymbol)
+  def isFun(sym: u.Symbol) = api.Sym.funs(sym.info.dealias.widen.typeSymbol)
 
   private def newSymbol(own: u.Symbol, name: String, rhs: u.Tree): u.TermSymbol = {
     api.ValSym(own, api.TermName.fresh(name), rhs.tpe.widen)
