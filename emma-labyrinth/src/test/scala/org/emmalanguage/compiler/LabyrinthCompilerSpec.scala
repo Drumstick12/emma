@@ -53,6 +53,8 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
 
   // helper
   def add1(x: Int) : Int = x + 1
+  def str(x: Int) : String = x.toString
+  def add(x: Int, y: Int) : Int = x + y
 
   "all tests" - {
     "ValDef only" in {
@@ -110,7 +112,7 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
       applyXfrm(nonbag2bag)(inp) shouldBe alphaEqTo(anfPipeline(exp))
     }
 
-    "replace defcalls on valdef rhs" in {
+    "method one argument" in {
       val inp = reify {
         val a = 1;
         val b = add1(a);
@@ -125,11 +127,26 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
       applyXfrm(nonbag2bag)(inp) shouldBe alphaEqTo(anfPipeline(exp))
     }
 
-    "test42" in {
+    "method one argument typechange" in {
+      val inp = reify {
+        val a = 1;
+        val b = str(a);
+        b
+      }
+      val exp = reify {
+        val a = DB.singSrc(() => { val tmp = 1; tmp });
+        val b = a.map(e => str(e));
+        b
+      }
+
+      applyXfrm(nonbag2bag)(inp) shouldBe alphaEqTo(anfPipeline(exp))
+    }
+
+    "method two arguments" in {
       val inp = reify {
         val a = 1
         val b = 2
-        val c = a + b
+        val c = add(a,b)
       }
       val exp = reify {
         val a = DB.singSrc(() => { val tmp = 1; tmp })
