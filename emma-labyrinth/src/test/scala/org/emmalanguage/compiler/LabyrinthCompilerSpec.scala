@@ -17,6 +17,7 @@ package org.emmalanguage
 package compiler
 
 import api.DataBag
+import api.backend.LocalOps._
 
 class LabyrinthCompilerSpec extends BaseCompilerSpec
   with LabyrinthCompilerAware
@@ -142,7 +143,7 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
       applyXfrm(nonbag2bag)(inp) shouldBe alphaEqTo(anfPipeline(exp))
     }
 
-    "method two arguments" in {
+    "method two arguments 1" in {
       val inp = reify {
         val a = 1
         val b = 2
@@ -151,12 +152,26 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
       val exp = reify {
         val a = DB.singSrc(() => { val tmp = 1; tmp })
         val b = DB.singSrc(() => { val tmp = 2; tmp })
+        val c = cross(a,b).map( (t: (Int, Int)) => add(t._1,t._2))
       }
 
       applyXfrm(nonbag2bag)(inp) shouldBe alphaEqTo(anfPipeline(exp))
     }
 
+    "method two arguments 2" in {
+      val inp = reify {
+        val a = 1
+        val b = 2
+        val c = a.+(b)
+      }
+      val exp = reify {
+        val a = DB.singSrc(() => { val tmp = 1; tmp })
+        val b = DB.singSrc(() => { val tmp = 2; tmp })
+        val c = cross(a,b).map( (t: (Int, Int)) => t._1 + t._2)
+      }
 
+      applyXfrm(nonbag2bag)(inp) shouldBe alphaEqTo(anfPipeline(exp))
+    }
 
     "test with some methods" in {
       val inp = reify {
