@@ -168,7 +168,7 @@ trait LabyrinthCompiler extends Compiler {
               nvdRefDef._2
 
             // TODO cross combination of two arguments
-            case dc @ core.DefCall(tgt, ms, targs, args) =>
+            case dc @ core.DefCall(tgt, ms, targs, args @ Seq(Seq(x, y))) =>
               println(tgt, ms, targs, args)
               // val tgtRepl = tgt match {
               //   case Some(core.ValRef(sym)) => {
@@ -177,16 +177,16 @@ trait LabyrinthCompiler extends Compiler {
               //  case _ => None
               // }
 
-              val argRepls = args.head.map(
-                x => x match {
-                  case core.ValRef(sym) if seen.keys.toList.contains(sym) => core.ValRef(seen(sym).get)
-                  case _ => x
-                }
-              )
-              val crossDc = core.DefCall(Some(Ops.ref), Ops.cross, targs, Seq(argRepls))
+              val argRepls = args.head.map {
+                case core.ValRef(sym) if seen.keys.toList.contains(sym) => core.ValRef(seen(sym).get)
+                case _ => x
+              }
+              val targsRepls = args.head.map( x => x.tpe )
+              val crossDc = core.DefCall(Some(Ops.ref), Ops.cross, targsRepls, Seq(argRepls))
               println(crossDc)
 
-              val lbdaSym = api.ParSym(owner, api.TermName.fresh("t"), crossDc.tpe.typeArgs.head)
+              val xyTpe = api.Type.kind2[Tuple2](x.tpe, y.tpe)
+              val lbdaSym = api.ParSym(owner, api.TermName.fresh("t"), xyTpe)
               val lbdaRef = core.ParRef(lbdaSym)
               // TODO:
               //   lambda = t -> {
@@ -196,18 +196,18 @@ trait LabyrinthCompiler extends Compiler {
               //   }
 
               //     t1 = t._1
-              val t1 = core.DefCall(Some(lbdaRef), _1, Seq(), Seq(Seq()))
+              val t1 = core.DefCall(Some(lbdaRef), _1, Seq(), Seq())
               val t1RefDef = valRefAndDef(owner, "t1", t1)
 
               //     t2 = t._2
-              val t2 = core.DefCall(Some(lbdaRef), _2, Seq(), Seq(Seq()))
+              val t2 = core.DefCall(Some(lbdaRef), _2, Seq(), Seq())
               val t2RefDef = valRefAndDef(owner, "t2", t2)
 
               //     f(t1, t2)
               val lmbdaRhsDC = core.DefCall(tgt, ms, targs, Seq(Seq(t1RefDef._1, t2RefDef._1)))
               val lmbdaRhsDCRefDef = valRefAndDef(owner, "lbdaRhs", lmbdaRhsDC)
               skip(lmbdaRhsDCRefDef._2)
-              val lmbdaRhs = core.Let(Seq(lmbdaRhsDCRefDef._2), Seq(), lmbdaRhsDCRefDef._1)
+              val lmbdaRhs = core.Let(Seq(t1RefDef._2, t2RefDef._2, lmbdaRhsDCRefDef._2), Seq(), lmbdaRhsDCRefDef._1)
               val lmbda = core.Lambda(
                 Seq(lbdaSym),
                 lmbdaRhs
@@ -217,8 +217,13 @@ trait LabyrinthCompiler extends Compiler {
               val crossSym = newSymbol(owner, "cross", crossDc)
               val crossRefDef = valRefAndDef(crossSym, crossDc)
 
-              val ndc = core.DefCall(Some(crossRefDef._1), DataBag.map, Seq(dc.tpe), Seq(Seq(lambdaRefDef._1)))
-              crossRefDef._2
+              val mapDC = core.DefCall(Some(crossRefDef._1), DataBag.map, Seq(dc.tpe), Seq(Seq(lambdaRefDef._1)))
+              val mapDCRefDef = valRefAndDef(owner, "map", mapDC)
+
+              val blockFinal = core.Let(Seq(crossRefDef._2, lambdaRefDef._2, mapDCRefDef._2), Seq(), mapDCRefDef._1)
+              val blockFinalRefDef = valRefAndDef(owner, "res", blockFinal)
+
+              blockFinalRefDef._2
 
             case _ => {
               println
