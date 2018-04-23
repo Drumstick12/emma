@@ -29,6 +29,10 @@ trait LabyrinthCompiler extends Compiler {
   lazy val StreamExecutionEnvironment = api.Type[org.apache.flink.streaming.api.scala.StreamExecutionEnvironment]
 
   val core = Core.Lang
+  private val Seq(_1, _2) = {
+    val tuple2 = api.Type[(Nothing, Nothing)]
+    for (i <- 1 to 2) yield tuple2.member(api.TermName(s"_$i")).asTerm
+  }
 
   def transformations(implicit cfg: Config): Seq[TreeTransform] = Seq(
     // lifting
@@ -165,9 +169,56 @@ trait LabyrinthCompiler extends Compiler {
 
             // TODO cross combination of two arguments
             case dc @ core.DefCall(tgt, ms, targs, args) =>
-              print(tgt, ms, targs, args)
-              val nms = Ops.cross
-              vd
+              println(tgt, ms, targs, args)
+              // val tgtRepl = tgt match {
+              //   case Some(core.ValRef(sym)) => {
+              //     Some(core.ValRef(seen(sym).get))
+              //  }
+              //  case _ => None
+              // }
+
+              val argRepls = args.head.map(
+                x => x match {
+                  case core.ValRef(sym) if seen.keys.toList.contains(sym) => core.ValRef(seen(sym).get)
+                  case _ => x
+                }
+              )
+              val crossDc = core.DefCall(Some(Ops.ref), Ops.cross, targs, Seq(argRepls))
+              println(crossDc)
+
+              val lbdaSym = api.ParSym(owner, api.TermName.fresh("t"), crossDc.tpe.typeArgs.head)
+              val lbdaRef = core.ParRef(lbdaSym)
+              // TODO:
+              //   lambda = t -> {
+              //     t1 = t._1
+              //     t2 = t._2
+              //     f(t1, t2)
+              //   }
+
+              //     t1 = t._1
+              val t1 = core.DefCall(Some(lbdaRef), _1, Seq(), Seq(Seq()))
+              val t1RefDef = valRefAndDef(owner, "t1", t1)
+
+              //     t2 = t._2
+              val t2 = core.DefCall(Some(lbdaRef), _2, Seq(), Seq(Seq()))
+              val t2RefDef = valRefAndDef(owner, "t2", t2)
+
+              //     f(t1, t2)
+              val lmbdaRhsDC = core.DefCall(tgt, ms, targs, Seq(Seq(t1RefDef._1, t2RefDef._1)))
+              val lmbdaRhsDCRefDef = valRefAndDef(owner, "lbdaRhs", lmbdaRhsDC)
+              skip(lmbdaRhsDCRefDef._2)
+              val lmbdaRhs = core.Let(Seq(lmbdaRhsDCRefDef._2), Seq(), lmbdaRhsDCRefDef._1)
+              val lmbda = core.Lambda(
+                Seq(lbdaSym),
+                lmbdaRhs
+              )
+              val lambdaRefDef = valRefAndDef(owner, "lambda", lmbda)
+
+              val crossSym = newSymbol(owner, "cross", crossDc)
+              val crossRefDef = valRefAndDef(crossSym, crossDc)
+
+              val ndc = core.DefCall(Some(crossRefDef._1), DataBag.map, Seq(dc.tpe), Seq(Seq(lambdaRefDef._1)))
+              crossRefDef._2
 
             case _ => {
               println
