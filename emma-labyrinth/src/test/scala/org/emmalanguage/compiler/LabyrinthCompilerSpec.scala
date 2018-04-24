@@ -56,6 +56,7 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
   def add1(x: Int) : Int = x + 1
   def str(x: Int) : String = x.toString
   def add(x: Int, y: Int) : Int = x + y
+  def add(w: Int, x: Int, y: Int, z: Int) : Int = w + x + y + z
 
   "all tests" - {
     "ValDef only" in {
@@ -143,7 +144,7 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
       applyXfrm(nonbag2bag)(inp) shouldBe alphaEqTo(anfPipeline(exp))
     }
 
-    "method two arguments 1" in {
+    "method two arguments no constant" in {
       val inp = reify {
         val a = 1
         val b = 2
@@ -153,6 +154,21 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
         val a = DB.singSrc(() => { val tmp = 1; tmp })
         val b = DB.singSrc(() => { val tmp = 2; tmp })
         val c = cross(a,b).map( (t: (Int, Int)) => add(t._1,t._2))
+      }
+
+      applyXfrm(nonbag2bag)(inp) shouldBe alphaEqTo(anfPipeline(exp))
+    }
+
+    "method two arguments with constants" in {
+      val inp = reify {
+        val a = 1
+        val b = 2
+        val c = add(3,a,4,b)
+      }
+      val exp = reify {
+        val a = DB.singSrc(() => { val tmp = 1; tmp })
+        val b = DB.singSrc(() => { val tmp = 2; tmp })
+        val c = cross(a,b).map( (t: (Int, Int)) => add(3,t._1,4,t._2))
       }
 
       applyXfrm(nonbag2bag)(inp) shouldBe alphaEqTo(anfPipeline(exp))
