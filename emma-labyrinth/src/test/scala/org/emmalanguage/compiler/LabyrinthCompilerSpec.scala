@@ -56,7 +56,8 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
   def add1(x: Int) : Int = x + 1
   def str(x: Int) : String = x.toString
   def add(x: Int, y: Int) : Int = x + y
-  def add(w: Int, x: Int, y: Int, z: Int) : Int = w + x + y + z
+  def add(u: Int, v: Int, w: Int, x: Int, y: Int, z: Int)(m: Int, n: Int)(s: Int, t: Int) : Int =
+    u + v + w + x + y + z + m + n + s + t
 
   "all tests" - {
     "ValDef only" in {
@@ -163,12 +164,12 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
       val inp = reify {
         val a = 1
         val b = 2
-        val c = add(3,a,4,b)
+        val c = add(3,4,a,5,6,7)(8,9)(10,b)
       }
       val exp = reify {
         val a = DB.singSrc(() => { val tmp = 1; tmp })
         val b = DB.singSrc(() => { val tmp = 2; tmp })
-        val c = cross(a,b).map( (t: (Int, Int)) => add(3,t._1,4,t._2))
+        val c = cross(a,b).map( (t: (Int, Int)) => add(3,4,t._1,5,6,7)(8,9)(10,t._2))
       }
 
       applyXfrm(nonbag2bag)(inp) shouldBe alphaEqTo(anfPipeline(exp))
@@ -183,7 +184,7 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
       val exp = reify {
         val a = DB.singSrc(() => { val tmp = 1; tmp })
         val b = DB.singSrc(() => { val tmp = 2; tmp })
-        val c = cross(a,b).map( (t: (Int, Int)) => t._1 + t._2)
+        val c = cross(a,b).map( (t: (Int, Int)) => t._1.+(t._2))
       }
 
       applyXfrm(nonbag2bag)(inp) shouldBe alphaEqTo(anfPipeline(exp))

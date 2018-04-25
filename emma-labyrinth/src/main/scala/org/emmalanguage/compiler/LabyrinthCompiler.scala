@@ -101,15 +101,15 @@ trait LabyrinthCompiler extends Compiler {
               val argReplDef = defs(argSymRepl)
               val argReplIsSingBag = argReplDef.rhs match {
                 //case core.DefCall(_, DB$.singSrc, _, Seq(Seq(vrarg2))) =>
-                  //println(vrarg2)
+                //println(vrarg2)
                 case let @ core.Let(_, _, core.ValRef(sym)) =>
                   println
                   defs(sym) match {
-                  case core.ValDef(_, core.DefCall(_, DB$.singSrc, _, Seq(Seq(vrarg2)))) =>
-                    println(vrarg2)
-                    true
-                  case _ => false
-                }
+                    case core.ValDef(_, core.DefCall(_, DB$.singSrc, _, Seq(Seq(vrarg2)))) =>
+                      println(vrarg2)
+                      true
+                    case _ => false
+                  }
                 case _ => false
               }
 
@@ -177,27 +177,28 @@ trait LabyrinthCompiler extends Compiler {
               if (tmp._1) { assert(tmp._4.length == 1) }
               else { assert(tmp._4.length == 2) }
 
-              // get argument (replacements) as vector for index access
-              val argsV = args.map(s1 => s1.toVector).toVector
-              val argReplsV = tmp._3.map(s1 => s1.toVector).toVector
+              // get argument (replacements) as buffer for index access and index updates
+              val argsV = args.map(s1 => s1.toBuffer).toBuffer
+              val argReplsV = tmp._3.map(s1 => s1.toBuffer).toBuffer
 
               // get non-constant argument positions in args
               val argPos = tmp._4
 
+              var tgtRepl = tgt
               if (tmp._1) { // tgt is non-constant argument
+                tgtRepl = tgt.get match {
+                  case core.ValRef(sym) => Some(core.ValRef(seen(sym).get))
+                  case _ => tgt
+                }
 
-                vd
-                
-              } else { // tgt is not non-constant argument
-                println(tgt, ms, targs, args)
                 val argRepls = tmp._3
 
-                val x = argsV(argPos(0)._1)(argPos(0)._2)
-                val y = argsV(argPos(1)._1)(argPos(1)._2)
-                val xRepl = argRepls(argPos(0)._1)(argPos(0)._2)
-                val yRepl = argRepls(argPos(1)._1)(argPos(1)._2)
+                val x = tgt.get
+                val y = argsV(argPos(0)._1)(argPos(0)._2)
+                val xRepl = tgtRepl.get
+                val yRepl = argRepls(argPos(0)._1)(argPos(0)._2)
 
-                val targsRepls =  Seq(x.tpe, y.tpe)
+                val targsRepls = Seq(x.tpe, y.tpe)
                 val crossDc = core.DefCall(Some(Ops.ref), Ops.cross, targsRepls, Seq(Seq(xRepl, yRepl)))
                 skip(crossDc)
                 println(crossDc)
@@ -208,7 +209,7 @@ trait LabyrinthCompiler extends Compiler {
                 //   lambda = t -> {
                 //     t1 = t._1
                 //     t2 = t._2
-                //     f(t1, t2)
+                //     t1.f(c1, ..., cn, t2, cn+2, ..., ck)
                 //   }
 
                 //     t1 = t._1
@@ -219,14 +220,74 @@ trait LabyrinthCompiler extends Compiler {
                 val t2 = core.DefCall(Some(lbdaRef), _2, Seq(), Seq())
                 val t2RefDef = valRefAndDef(owner, "t2", t2)
 
+                // TODO     f(c1, ..., cn, t2, cn+2, ..., ck)
                 // create argument list where db1/db2 are replaced by t1/t2
-                val argReplsLbdaV = argReplsV
+                val argReplsLbdaV = argReplsV.map(_.toBuffer).toBuffer
                 argReplsLbdaV.apply(argPos(0)._1)(argPos(0)._2) = t1RefDef._1
                 argReplsLbdaV.apply(argPos(1)._1)(argPos(1)._2) = t2RefDef._1
                 val argReplsLbda = argReplsLbdaV.map(_.toSeq).toSeq
 
-                //     f(t1, t2)
-                val lmbdaRhsDC = core.DefCall(tgt, ms, targs, argReplsLbda)
+                val lmbdaRhsDC = core.DefCall(tgtRepl, ms, targs, argReplsLbda)
+                val lmbdaRhsDCRefDef = valRefAndDef(owner, "lbdaRhs", lmbdaRhsDC)
+                skip(lmbdaRhsDCRefDef._2)
+                val lmbdaRhs = core.Let(Seq(t1RefDef._2, t2RefDef._2, lmbdaRhsDCRefDef._2), Seq(), lmbdaRhsDCRefDef._1)
+                val lmbda = core.Lambda(
+                  Seq(lbdaSym),
+                  lmbdaRhs
+                )
+                val lambdaRefDef = valRefAndDef(owner, "lambda", lmbda)
+
+                val crossSym = newSymbol(owner, "cross", crossDc)
+                val crossRefDef = valRefAndDef(crossSym, crossDc)
+
+                val mapDC = core.DefCall(Some(crossRefDef._1), DataBag.map, Seq(dc.tpe), Seq(Seq(lambdaRefDef._1)))
+                val mapDCRefDef = valRefAndDef(owner, "map", mapDC)
+
+                val blockFinal = core.Let(Seq(crossRefDef._2, lambdaRefDef._2, mapDCRefDef._2), Seq(), mapDCRefDef._1)
+                val blockFinalRefDef = valRefAndDef(owner, "res", blockFinal)
+
+                blockFinalRefDef._2
+
+              } else {
+
+                println(tgt, ms, targs, args)
+                val argRepls = tmp._3
+
+                val x = argsV(argPos(0)._1)(argPos(0)._2)
+                val y = argsV(argPos(1)._1)(argPos(1)._2)
+                val xRepl = argRepls(argPos(0)._1)(argPos(0)._2)
+                val yRepl = argRepls(argPos(1)._1)(argPos(1)._2)
+
+                val targsRepls = Seq(x.tpe, y.tpe)
+                val crossDc = core.DefCall(Some(Ops.ref), Ops.cross, targsRepls, Seq(Seq(xRepl, yRepl)))
+                skip(crossDc)
+                println(crossDc)
+
+                val xyTpe = api.Type.kind2[Tuple2](x.tpe, y.tpe)
+                val lbdaSym = api.ParSym(owner, api.TermName.fresh("t"), xyTpe)
+                val lbdaRef = core.ParRef(lbdaSym)
+                //   lambda = t -> {
+                //     t1 = t._1
+                //     t2 = t._2
+                //     f(c1, ..., cm, t1, cm+2, ..., cn, t2, cn+2, ..., ck)
+                //   }
+
+                //     t1 = t._1
+                val t1 = core.DefCall(Some(lbdaRef), _1, Seq(), Seq())
+                val t1RefDef = valRefAndDef(owner, "t1", t1)
+
+                //     t2 = t._2
+                val t2 = core.DefCall(Some(lbdaRef), _2, Seq(), Seq())
+                val t2RefDef = valRefAndDef(owner, "t2", t2)
+
+                //     f(c1, ..., cm, t1, cm+2, ..., cn, t2, cn+2, ..., ck)
+                // create argument list where db1/db2 are replaced by t1/t2
+                val argReplsLbdaV = argReplsV.map(_.toBuffer).toBuffer
+                argReplsLbdaV.apply(argPos(0)._1)(argPos(0)._2) = t1RefDef._1
+                argReplsLbdaV.apply(argPos(1)._1)(argPos(1)._2) = t2RefDef._1
+                val argReplsLbda = argReplsLbdaV.map(_.toSeq).toSeq
+
+                val lmbdaRhsDC = core.DefCall(tgtRepl, ms, targs, argReplsLbda)
                 val lmbdaRhsDCRefDef = valRefAndDef(owner, "lbdaRhs", lmbdaRhsDC)
                 skip(lmbdaRhsDCRefDef._2)
                 val lmbdaRhs = core.Let(Seq(t1RefDef._2, t2RefDef._2, lmbdaRhsDCRefDef._2), Seq(), lmbdaRhsDCRefDef._1)
@@ -247,6 +308,7 @@ trait LabyrinthCompiler extends Compiler {
 
                 blockFinalRefDef._2
               }
+
 
             case _ => {
               println
