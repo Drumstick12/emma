@@ -19,6 +19,11 @@ package compiler
 import api.DataBag
 import api.backend.LocalOps._
 
+class TestInt(v: Int) {
+  def addd(u: Int, w: Int, x: Int)(m: Int, n: Int)(s: Int, t: Int) : Int =
+    this.v + u + w + x + m + n + s + t
+}
+
 class LabyrinthCompilerSpec extends BaseCompilerSpec
   with LabyrinthCompilerAware
   with LabyrinthAware {
@@ -59,12 +64,13 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
   def add(u: Int, v: Int, w: Int, x: Int, y: Int, z: Int)(m: Int, n: Int)(s: Int, t: Int) : Int =
     u + v + w + x + y + z + m + n + s + t
 
+  // actual tests
   "all tests" - {
     "ValDef only" in {
       val inp = reify { val a = 1}
       val exp = reify { val a = DB.singSrc( () => { val tmp = 1; tmp } )}
 
-      applyXfrm(nonbag2bag)(inp) shouldBe alphaEqTo(anfPipeline(exp))
+      applyXfrm(labyrinthNormalize)(inp) shouldBe alphaEqTo(anfPipeline(exp))
     }
 
     "replace refs on valdef rhs" in {
@@ -76,7 +82,7 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
         b
       }
 
-      applyXfrm(nonbag2bag)(inp) shouldBe alphaEqTo(anfPipeline(exp))
+      applyXfrm(labyrinthNormalize)(inp) shouldBe alphaEqTo(anfPipeline(exp))
     }
 
     "ValDef only, SingSrc rhs" in {
@@ -89,7 +95,7 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
         val b = DB.singSrc(() => { val tmp = 2; tmp })
       }
 
-      applyXfrm(nonbag2bag)(inp) shouldBe alphaEqTo(anfPipeline(exp))
+      applyXfrm(labyrinthNormalize)(inp) shouldBe alphaEqTo(anfPipeline(exp))
     }
 
     "ValDef only, DataBag rhs" in {
@@ -105,14 +111,14 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
         val sb = DB.fromSingSrc(s)
       }
 
-      applyXfrm(nonbag2bag)(inp) shouldBe alphaEqTo(anfPipeline(exp))
+      applyXfrm(labyrinthNormalize)(inp) shouldBe alphaEqTo(anfPipeline(exp))
     }
 
     "replace refs simple" in {
       val inp = reify { val a = 1; a}
       val exp = reify { val a = DB.singSrc(() => { val tmp = 1; tmp }); a}
 
-      applyXfrm(nonbag2bag)(inp) shouldBe alphaEqTo(anfPipeline(exp))
+      applyXfrm(labyrinthNormalize)(inp) shouldBe alphaEqTo(anfPipeline(exp))
     }
 
     "method one argument" in {
@@ -127,7 +133,7 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
         b
       }
 
-      applyXfrm(nonbag2bag)(inp) shouldBe alphaEqTo(anfPipeline(exp))
+      applyXfrm(labyrinthNormalize)(inp) shouldBe alphaEqTo(anfPipeline(exp))
     }
 
     "method one argument typechange" in {
@@ -142,7 +148,7 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
         b
       }
 
-      applyXfrm(nonbag2bag)(inp) shouldBe alphaEqTo(anfPipeline(exp))
+      applyXfrm(labyrinthNormalize)(inp) shouldBe alphaEqTo(anfPipeline(exp))
     }
 
     "method two arguments no constant" in {
@@ -157,7 +163,7 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
         val c = cross(a,b).map( (t: (Int, Int)) => add(t._1,t._2))
       }
 
-      applyXfrm(nonbag2bag)(inp) shouldBe alphaEqTo(anfPipeline(exp))
+      applyXfrm(labyrinthNormalize)(inp) shouldBe alphaEqTo(anfPipeline(exp))
     }
 
     "method two arguments with constants" in {
@@ -172,22 +178,22 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
         val c = cross(a,b).map( (t: (Int, Int)) => add(3,4,t._1,5,6,7)(8,9)(10,t._2))
       }
 
-      applyXfrm(nonbag2bag)(inp) shouldBe alphaEqTo(anfPipeline(exp))
+      applyXfrm(labyrinthNormalize)(inp) shouldBe alphaEqTo(anfPipeline(exp))
     }
 
     "method two arguments 2" in {
       val inp = reify {
-        val a = 1
+        val a = new TestInt(1)
         val b = 2
-        val c = a.+(b)
+        val c = a.addd(1, b, 3)(4, 5)(6, 7)
       }
       val exp = reify {
-        val a = DB.singSrc(() => { val tmp = 1; tmp })
+        val a = DB.singSrc(() => { val tmp = new TestInt(1); tmp })
         val b = DB.singSrc(() => { val tmp = 2; tmp })
-        val c = cross(a,b).map( (t: (Int, Int)) => t._1.+(t._2))
+        val c = cross(a,b).map( (t: (TestInt, Int)) => t._1.addd(1, t._2, 3)(4, 5)(6, 7))
       }
 
-      applyXfrm(nonbag2bag)(inp) shouldBe alphaEqTo(anfPipeline(exp))
+      applyXfrm(labyrinthNormalize)(inp) shouldBe alphaEqTo(anfPipeline(exp))
     }
 
     "test with some methods" in {
@@ -200,7 +206,7 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
         1
       }
 
-      applyXfrm(nonbag2bag)(inp) shouldBe alphaEqTo(anfPipeline(exp))
+      applyXfrm(labyrinthNormalize)(inp) shouldBe alphaEqTo(anfPipeline(exp))
     }
   }
 }
