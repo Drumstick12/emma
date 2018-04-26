@@ -169,13 +169,13 @@ trait LabyrinthCompiler extends Compiler {
 
               nvdRefDef._2
 
-            // two arguments to cross + map
+            // two-argument callse -> cross + map
             case dc @ core.DefCall(tgt, ms, targs, args) =>
               val tmp = analyzeArgs(tgt, args, seen)
 
               // make sure we have only 2 non-constant arguments
-              if (tmp._1) { assert(tmp._4.length == 1) }
-              else { assert(tmp._4.length == 2) }
+              if (tmp._1) { assert(tmp._4.length == 1, ">1 arguments for arg1.fun(... arg2 ...)") }
+              else { assert(tmp._4.length == 2, ">2 arguments for fun( ... arg1 ... arg2 ...)")}
 
               // get argument (replacements) as buffer for index access and index updates
               val argsV = args.map(s1 => s1.toBuffer).toBuffer
