@@ -88,25 +88,27 @@ trait LabyrinthCompiler extends Compiler {
               // refs += (ns -> nvr)
               nvd
 
-            // first check if the rhs is a singleton bag due to anf and labyrinth transformation
-            // {{{
-            //      val a = 1;                          ==> Databag[Int]
-            //      val anf$r1 = Seq.apply[Int](2);     ==> Databag[Seq[Int]]
-            //      val b = DataBag.apply[Int](anf$r1); ==> Databag[Int] instead of Databag[Databag[Seq[Int]]]
-            // }}}
-            // val argReplRef = refs(seen(argsym).get)
-            case dc @ core.DefCall(tgt, DataBag$.apply, targs, Seq(Seq(dcarg @ core.ValRef(argsym)))) =>
+            /*
+            In the following we have to catch all the cases where the user manually creates Databags.
+
+            first: check if the rhs is a singleton bag of Seq[A] due to anf and labyrinth transformation
+            {{{
+                 val a = Seq.apply[Int](2)
+                 val b = DataBag.apply[Int](a)
+
+                 val a' = singSrc[Seq[Int]](Seq(2)) ==> Databag[Seq[Int]]
+                 val b' = fromSingSrc[Int](a')      ==> Databag[Int]
+            }}}
+             */
+            case dc @ core.DefCall(_, DataBag$.apply, _, Seq(Seq(core.ValRef(argsym)))) =>
               val argSymRepl = seen(argsym).get
               val argReplRef = core.ValRef(argSymRepl)
               val argReplDef = defs(argSymRepl)
               val argReplIsSingBag = argReplDef.rhs match {
-                //case core.DefCall(_, DB$.singSrc, _, Seq(Seq(vrarg2))) =>
-                //println(vrarg2)
-                case let @ core.Let(_, _, core.ValRef(sym)) =>
+                case core.Let(_, _, core.ValRef(sym)) =>
                   println
                   defs(sym) match {
-                    case core.ValDef(_, core.DefCall(_, DB$.singSrc, _, Seq(Seq(vrarg2)))) =>
-                      println(vrarg2)
+                    case core.ValDef(_, core.DefCall(_, DB$.singSrc, _, _) =>
                       true
                     case _ => false
                   }
@@ -121,7 +123,7 @@ trait LabyrinthCompiler extends Compiler {
                   Seq(Seq(argReplRef))
                 )
                 val dbSym = newSymbol(owner, "db", dbRhs)
-                val dbRef = core.ValRef(dbSym)
+                // val dbRef = core.ValRef(dbSym)
                 val db = core.ValDef(dbSym, dbRhs)
                 skip(db)
 
@@ -133,6 +135,20 @@ trait LabyrinthCompiler extends Compiler {
               } else {
                 vd
               }
+
+            /* TODO
+            second: check if the user creates a databag using the .readText, .readCSV, or .readParqet methods.
+            {{{
+                 val a = "path";                     ==> Databag[String]
+                 val b = DataBag.readText(a)         ==> Databag[String]
+
+                 val a' = singSrc[String]("path")
+                 val b' = fromSingSrc[String](a')
+            }}}
+             */
+            case dc @ core.DefCall(_, DataBag$.readText, _, Seq(Seq(core.ValRef(argsym)))) => vd
+            case dc @ core.DefCall(_, DataBag$.readCSV, _, Seq(Seq(core.ValRef(argsym)))) => vd
+            case dc @ core.DefCall(_, DataBag$.readParquet, _, Seq(Seq(core.ValRef(argsym)))) => vd
 
             case dc @ core.DefCall(tgt, ms, targs, Seq(Seq(dcarg @ core.ValRef(argsym)))) if !refSeen(tgt, seen) =>
               val argSymRepl = seen(argsym).get
