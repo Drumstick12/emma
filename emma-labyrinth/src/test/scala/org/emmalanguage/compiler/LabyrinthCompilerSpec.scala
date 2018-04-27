@@ -196,17 +196,40 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
       applyXfrm(labyrinthNormalize)(inp) shouldBe alphaEqTo(anfPipeline(exp))
     }
 
-    "test with some methods" in {
+    "wordcount" in {
       val inp = reify {
-        val a = DataBag(Seq((a: Int) => add1(a)));
-        val b = a.map(f => f(1));
-        b
+        val docs = DataBag.readText(System.getProperty("java.io.tmpdir"))
+
+//        val words = for {
+//          line <- docs
+//          word <- DataBag[String](line.toLowerCase.split("\\W+"))
+//          if word != ""
+//        } yield word
+//
+//        // group the words by their identity and count the occurrence of each word
+//        val counts = for {
+//          group <- words.groupBy(x => x)
+//        } yield (group.key, group.values.size)
+//
+//        counts
       }
-      val exp = reify {
-        1
-      }
+
+      val exp = reify { val a = 1 }
 
       applyXfrm(labyrinthNormalize)(inp) shouldBe alphaEqTo(anfPipeline(exp))
     }
+
+    // "databag of lambdas" in {
+    //   val inp = reify {
+    //     val a = DataBag(Seq((a: Int) => add1(a)));
+    //     val b = a.map(f => f(1));
+    //    b
+    //   }
+    //   val exp = reify {
+    //     1
+    //   }
+    //
+    //   applyXfrm(labyrinthNormalize)(inp) shouldBe alphaEqTo(anfPipeline(exp))
+    // }
   }
 }
