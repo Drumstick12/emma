@@ -108,7 +108,7 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
       {
         val a = DB.singSrc(() => { val tmp = 1; tmp })
         val s = DB.singSrc(() => { val tmp = Seq(2); tmp })
-        val sb = DB.fromSingSrc(s)
+        val sb = DB.fromSingSrcApply(s)
       }
 
       applyXfrm(labyrinthNormalize)(inp) shouldBe alphaEqTo(anfPipeline(exp))
@@ -199,19 +199,19 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
     "wordcount" in {
       val inp = reify {
         val docs = DataBag.readText(System.getProperty("java.io.tmpdir"))
+        val words = for {
+          line <- docs
+          word <- DataBag[String](line.toLowerCase.split("\\W+"))
+          if word != ""
+        } yield word
 
-//        val words = for {
-//          line <- docs
-//          word <- DataBag[String](line.toLowerCase.split("\\W+"))
-//          if word != ""
-//        } yield word
-//
-//        // group the words by their identity and count the occurrence of each word
-//        val counts = for {
-//          group <- words.groupBy(x => x)
-//        } yield (group.key, group.values.size)
-//
-//        counts
+        // group the words by their identity and count the occurrence of each word
+        val counts = for {
+          group <- words.groupBy(x => x)
+        } yield (group.key, group.values.size)
+
+        // counts.writeCSV("outputpath", org.emmalanguage.api.CSV())
+        counts
       }
 
       val exp = reify { val a = 1 }
