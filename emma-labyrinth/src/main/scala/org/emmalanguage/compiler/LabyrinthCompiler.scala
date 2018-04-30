@@ -78,14 +78,60 @@ trait LabyrinthCompiler extends Compiler {
         case Attr.inh(vd @ core.ValDef(lhs, rhs), owner :: _)
           if prePrint(vd) && !meta(vd).all.all.contains(SkipTraversal)
             && refsSeen(rhs, seen) && !isFun(lhs) && !isFun(owner) =>
-          rhs match {
+
+            /*
+              helper function for the second case of user databag creation (see below)
+              {{{
+                   val a = "path";                     ==> Databag[String]
+                   val b = DataBag.readText(a)         ==> Databag[String]
+
+                   val a' = singSrc[String]("path")
+                   val b' = fromSingSrc[String](a')
+              }}}
+             */
+            def defFromDatabagRead(s: u.TermSymbol) : u.ValDef = {
+              val argSymRepl = seen(s).get
+              val argReplRef = core.ValRef(argSymRepl)
+
+              if (defcallargBecameSingSrc(s)) {
+                val dbRhs = core.DefCall(
+                  Some(DB$.ref),
+                  DB$.fromSingSrcRead,
+                  Seq(argReplRef.tpe.widen.typeArgs.head),
+                  Seq(Seq(argReplRef))
+                )
+                val dbSym = newSymbol(owner, "db", dbRhs)
+                val db = core.ValDef(dbSym, dbRhs)
+                skip(db)
+
+                seen += (lhs -> Some(dbSym))
+                defs += (dbSym -> db)
+                db
+              } else {
+                vd
+              }
+            }
+
+            def defcallargBecameSingSrc(s: u.TermSymbol) : Boolean = {
+              val argSymRepl = seen(s).get
+              val argReplDef = defs(argSymRepl)
+              argReplDef.rhs match {
+                case core.Let(_, _, core.ValRef(sym)) =>
+                  defs(sym) match {
+                    case core.ValDef(_, core.DefCall(_, DB$.singSrc, _, _)) => true
+                    case _ => false
+                  }
+                case _ => false
+              }
+            }
+
+            rhs match {
             case core.ValRef(sym) if seen.keys.toList.contains (sym) =>
               val nvr = core.ValRef(seen(sym).get)
               val ns = newSymbol(owner, lhs.name.toString, nvr)
               val nvd = core.ValDef(ns, nvr)
               skip(nvd)
               seen += (lhs -> Some(ns))
-              // refs += (ns -> nvr)
               nvd
 
             /*
@@ -100,36 +146,22 @@ trait LabyrinthCompiler extends Compiler {
                  val b' = fromSingSrc[Int](a')      ==> Databag[Int]
             }}}
              */
-            case dc @ core.DefCall(_, DataBag$.apply, _, Seq(Seq(core.ValRef(argsym)))) =>
+            case core.DefCall(_, DataBag$.apply, _, Seq(Seq(core.ValRef(argsym)))) =>
               val argSymRepl = seen(argsym).get
               val argReplRef = core.ValRef(argSymRepl)
-              val argReplDef = defs(argSymRepl)
-              val argReplIsSingBag = argReplDef.rhs match {
-                case core.Let(_, _, core.ValRef(sym)) =>
-                  println
-                  defs(sym) match {
-                    case core.ValDef(_, core.DefCall(_, DB$.singSrc, _, _) =>
-                      true
-                    case _ => false
-                  }
-                case _ => false
-              }
 
-              if (argReplIsSingBag) {
+              if (defcallargBecameSingSrc(argsym)) {
                 val dbRhs = core.DefCall(
                   Some(DB$.ref),
-                  DB$.fromSingSrc,
+                  DB$.fromSingSrcApply,
                   Seq(argReplRef.tpe.widen.typeArgs.head.typeArgs.head),
                   Seq(Seq(argReplRef))
                 )
                 val dbSym = newSymbol(owner, "db", dbRhs)
-                // val dbRef = core.ValRef(dbSym)
                 val db = core.ValDef(dbSym, dbRhs)
                 skip(db)
 
                 seen += (lhs -> Some(dbSym))
-                // refs += (dbSym -> dbRef)
-                // defs += (dbRef -> db)
                 defs += (dbSym -> db)
                 db
               } else {
@@ -138,22 +170,14 @@ trait LabyrinthCompiler extends Compiler {
 
             /* TODO
             second: check if the user creates a databag using the .readText, .readCSV, or .readParqet methods.
-            {{{
-                 val a = "path";                     ==> Databag[String]
-                 val b = DataBag.readText(a)         ==> Databag[String]
-
-                 val a' = singSrc[String]("path")
-                 val b' = fromSingSrc[String](a')
-            }}}
              */
-            case dc @ core.DefCall(_, DataBag$.readText, _, Seq(Seq(core.ValRef(argsym)))) => vd
-            case dc @ core.DefCall(_, DataBag$.readCSV, _, Seq(Seq(core.ValRef(argsym)))) => vd
-            case dc @ core.DefCall(_, DataBag$.readParquet, _, Seq(Seq(core.ValRef(argsym)))) => vd
+            case core.DefCall(_, DataBag$.readText, _, Seq(Seq(core.ValRef(argsym)))) => defFromDatabagRead(argsym)
+            case core.DefCall(_, DataBag$.readCSV, _, Seq(Seq(core.ValRef(argsym)))) => defFromDatabagRead(argsym)
+            case core.DefCall(_, DataBag$.readParquet, _, Seq(Seq(core.ValRef(argsym)))) => defFromDatabagRead(argsym)
 
             case dc @ core.DefCall(tgt, ms, targs, Seq(Seq(dcarg @ core.ValRef(argsym)))) if !refSeen(tgt, seen) =>
               val argSymRepl = seen(argsym).get
               val argReplRef = core.ValRef(argSymRepl)
-              val argReplDef = defs(argSymRepl)
 
               val lbdaSym = api.ParSym(owner, api.TermName.fresh("lmbda"), dcarg.tpe)
               val lmbdaRhsDC = core.DefCall(tgt, ms, targs, Seq(Seq(core.ParRef(lbdaSym))))
@@ -185,8 +209,8 @@ trait LabyrinthCompiler extends Compiler {
 
               nvdRefDef._2
 
-            // two-argument callse -> cross + map
-            case dc @ core.DefCall(tgt, ms, targs, args) =>
+            // two-argument calls -> cross + map
+            case dc @ core.DefCall(tgt, ms, targs, args) if !refSeen(tgt, seen) =>
               val tmp = analyzeArgs(tgt, args, seen)
 
               // make sure we have only 2 non-constant arguments
@@ -257,7 +281,10 @@ trait LabyrinthCompiler extends Compiler {
                 val mapDCRefDef = valRefAndDef(owner, "map", mapDC)
 
                 val blockFinal = core.Let(Seq(crossRefDef._2, lambdaRefDef._2, mapDCRefDef._2), Seq(), mapDCRefDef._1)
-                val blockFinalRefDef = valRefAndDef(owner, "res", blockFinal)
+                val blockFinalSym = newSymbol(owner, "res", blockFinal)
+                val blockFinalRefDef = valRefAndDef(blockFinalSym, blockFinal)
+
+                seen += (lhs -> Some(blockFinalSym))
 
                 blockFinalRefDef._2
 
@@ -313,7 +340,10 @@ trait LabyrinthCompiler extends Compiler {
                 val mapDCRefDef = valRefAndDef(owner, "map", mapDC)
 
                 val blockFinal = core.Let(Seq(crossRefDef._2, lambdaRefDef._2, mapDCRefDef._2), Seq(), mapDCRefDef._1)
-                val blockFinalRefDef = valRefAndDef(owner, "res", blockFinal)
+                val blockFinalSym = newSymbol(owner, "res", blockFinal)
+                val blockFinalRefDef = valRefAndDef(blockFinalSym, blockFinal)
+
+                seen += (lhs -> Some(blockFinalSym))
 
                 blockFinalRefDef._2
               }
@@ -512,7 +542,8 @@ trait LabyrinthCompiler extends Compiler {
 
     val singBag = op("singBag")
     val singSrc = op("singSrc")
-    val fromSingSrc = op("fromSingSrc")
+    val fromSingSrcApply = op("fromSingSrcApply")
+    val fromSingSrcRead = op("fromSingSrcRead")
 
     override def ops = Set()
 
@@ -539,9 +570,14 @@ object DB {
     org.emmalanguage.api.DataBag(db.collect().head)
   }
 
-  def fromSingSrc[A: org.emmalanguage.api.Meta](db: org.emmalanguage.api.DataBag[Seq[A]]):
+  def fromSingSrcApply[A: org.emmalanguage.api.Meta](db: org.emmalanguage.api.DataBag[Seq[A]]):
   org.emmalanguage.api.DataBag[A] = {
     org.emmalanguage.api.DataBag(db.collect().head)
+  }
+
+  def fromSingSrcRead[A: org.emmalanguage.api.Meta](db: org.emmalanguage.api.DataBag[A]):
+  org.emmalanguage.api.DataBag[A] = {
+    org.emmalanguage.api.DataBag(Seq(db.collect().head))
   }
 
 }
