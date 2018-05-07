@@ -20,14 +20,6 @@ import api.DataBag
 import api.backend.LocalOps._
 import api._
 
-//import shapeless.Generic
-//import shapeless.Lazy
-//import org.emmalanguage.api.DataBagSpec.CSVRecord
-//import org.emmalanguage.test.schema.Literature.Book
-
-//import scala.language.higherKinds
-//import scala.language.implicitConversions
-
 class TestInt(v: Int) {
   def addd(u: Int, w: Int, x: Int)(m: Int, n: Int)(s: Int, t: Int) : Int =
     this.v + u + w + x + m + n + s + t
@@ -220,6 +212,40 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
       applyXfrm(labyrinthNormalize)(inp) shouldBe alphaEqTo(anfPipeline(exp))
     }
 
+    "method three arguments with constants" in {
+      val inp = reify {
+        val a = 1
+        val b = 2
+        val c = 3
+        val d = add(3,4,a,5,6,7)(c,9)(10,b)
+      }
+      val exp = reify {
+        val a = DB.singSrc(() => { val tmp = 1; tmp })
+        val b = DB.singSrc(() => { val tmp = 2; tmp })
+        val c = DB.singSrc(() => { val tmp = 3; tmp })
+        val d = DB.cross3(a,c,b).map( (t: (Int, Int, Int)) => add(3,4,t._1,5,6,7)(t._2,9)(10,t._3))
+      }
+
+      applyXfrm(labyrinthNormalize)(inp) shouldBe alphaEqTo(anfPipeline(exp))
+    }
+
+    "method three arguments 2" in {
+      val inp = reify {
+        val a = new TestInt(1)
+        val b = 2
+        val c = 3
+        val d = a.addd(1, b, 3)(4, c)(6, 7)
+      }
+      val exp = reify {
+        val a = DB.singSrc(() => { val tmp = new TestInt(1); tmp })
+        val b = DB.singSrc(() => { val tmp = 2; tmp })
+        val c = DB.singSrc(() => { val tmp = 3; tmp })
+        val d = DB.cross3(a,b,c).map( (t: (TestInt, Int, Int)) => t._1.addd(1, t._2, 3)(4, t._3)(6, 7))
+      }
+
+      applyXfrm(labyrinthNormalize)(inp) shouldBe alphaEqTo(anfPipeline(exp))
+    }
+
     "wordcount" in {
       val inp = reify {
         val docs = DataBag.readText(System.getProperty("java.io.tmpdir"))
@@ -234,18 +260,9 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
           group <- words.groupBy(x => x)
         } yield (group.key, group.values.size)
 
-        // counts.writeCSV("outputpath", org.emmalanguage.api.CSV())
-        counts
+        counts.writeCSV("outputpath", org.emmalanguage.api.CSV())
+        // counts
       }
-
-      // val xxxxxxx = {
-      //   val docs = DataBag.readText(System.getProperty("java.io.tmpdir"))(LocalEnv.apply);
-      //   val words = docs.flatMap(((line) => DataBag.apply[Predef.String](Predef.wrapRefArray(line.toLowerCase().split("\\W+")))(implicitly, LocalEnv.apply).withFilter(((word) => word.!=(""))).map(((word) => word))(implicitly)))(implicitly);
-      //   val counts = words.groupBy(((x) => x))(implicitly).map(((group) => Tuple2.apply(group.key, group.values.size)))(implicitly);
-      //   counts.writeCSV("outputpath",
-      //     CSV.apply(CSV.apply$default$1, CSV.apply$default$2, CSV.apply$default$3, CSV.apply$default$4, CSV.apply$default$5, CSV.apply$default$6, CSV.apply$default$7, CSV.apply$default$8, CSV.apply$default$9))
-      //   (CSVConverter.genericCSVConverter(Generic.materialize, Lazy.mkLazy))
-      // }
 
       val exp = reify { val a = 1 }
 
