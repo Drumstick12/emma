@@ -569,7 +569,7 @@
                         <arg>-Xmax-classfile-name</arg>
                         <arg>140</arg>
                         <arg>-Xlint:-adapted-args,_</arg>
-                        <arg>-Xfatal-warnings</arg>
+                        <!--<arg>-Xfatal-warnings</arg>-->
                         <!--<arg>-Xdisable-assertions</arg>-->
                     </args>
                 </configuration>
