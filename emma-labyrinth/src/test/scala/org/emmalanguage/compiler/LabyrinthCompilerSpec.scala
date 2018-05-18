@@ -115,21 +115,6 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
       applyXfrm(labyrinthNormalize)(inp) shouldBe alphaEqTo(anfPipeline(exp))
     }
 
-    // ???
-//    "DataBag.readXXXX" in {
-//      val inp = reify {
-//        val t = DataBag.readText("fooo")
-//        val c = DataBag.readCSV[Book]("fooo", org.emmalanguage.api.CSV())
-//        val p = DataBag.readParquet[Book]("fooo", org.emmalanguage.api.Parquet())
-//      }
-//
-//      val exp = reify {
-//        val a = 1
-//      }
-//
-//      applyXfrm(labyrinthNormalize)(inp) shouldBe alphaEqTo(anfPipeline(exp))
-//    }
-
     "replace refs simple" in {
       val inp = reify { val a = 1; a}
       val exp = reify { val a = DB.singSrc(() => { val tmp = 1; tmp }); a}
@@ -246,29 +231,7 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
       applyXfrm(labyrinthNormalize)(inp) shouldBe alphaEqTo(anfPipeline(exp))
     }
 
-    "wordcount" in {
-      val inp = reify {
-        val docs = DataBag.readText(System.getProperty("java.io.tmpdir"))
-        val words = for {
-          line <- docs
-          word <- DataBag[String](line.toLowerCase.split("\\W+"))
-          if word != ""
-        } yield word
-
-        // group the words by their identity and count the occurrence of each word
-        val counts = for {
-          group <- words.groupBy(x => x)
-        } yield (group.key, group.values.size)
-
-        counts.writeCSV("outputpath", org.emmalanguage.api.CSV())
-        // counts
-      }
-
-      val exp = reify { val a = 1 }
-
-      applyXfrm(labyrinthNormalize)(inp) shouldBe alphaEqTo(anfPipeline(exp))
-    }
-
+    // this is not yet suppported, if I'm not mistaken
     // "databag of lambdas" in {
     //   val inp = reify {
     //     val a = DataBag(Seq((a: Int) => add1(a)));
