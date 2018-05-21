@@ -17,13 +17,10 @@ package org.emmalanguage
 package compiler
 
 import api.CSVConverter
+import org.emmalanguage.api.Meta
 
 import com.typesafe.config.Config
 import shapeless.::
-
-import scala.collection.mutable.ListBuffer
-
-//import cats.instances.all._
 
 trait LabyrinthCompiler extends Compiler {
 
@@ -71,7 +68,6 @@ trait LabyrinthCompiler extends Compiler {
     val defs = scala.collection.mutable.Map[u.TermSymbol, u.ValDef]()
 
     println("___")
-    println(LabyrinthCompiler.this)
     println("==0tree==")
     println(tree)
     println("==0tree==")
@@ -90,14 +86,15 @@ trait LabyrinthCompiler extends Compiler {
           def defcallargBecameSingSrc(s: u.TermSymbol) : Boolean = {
             val argSymRepl = replacements(s)
             val argReplDef = defs(argSymRepl)
-            argReplDef.rhs match {
-              case core.Let(_, _, core.ValRef(sym)) =>
-                defs(sym) match {
-                  case core.ValDef(_, core.DefCall(_, DB$.singSrc, _, _)) => true
-                  case _ => false
-                }
-              case _ => false
-            }
+            // argReplDef.rhs match {
+            //   case core.Let(_, _, r @ core.ValRef(sym)) =>
+            //     defs(sym) match {
+            //       case core.ValDef(_, core.DefCall(_, DB$.singSrc, _, _)) => true
+            //       case _ => false
+            //     }
+            //   case _ => false
+            // }
+            isDatabag(argReplDef.rhs) && meta(argReplDef).all.all.contains(SkipTraversal)
           }
 
           // if the rhs of a valdef is simple a valref, replace that valref with the valref of a newly created valdef,
@@ -168,8 +165,31 @@ trait LabyrinthCompiler extends Compiler {
               } else {
                 vd
               }
-            // TODO
-            case core.DefCall(_, DataBag$.readCSV, _, Seq(Seq(core.ValRef(argsym)))) => vd
+
+            case core.DefCall(_, DataBag$.readCSV, targs, Seq(Seq(core.ValRef(pathSym), core.ValRef(formatSym)))) => {
+              val pathSymRepl = replacements(pathSym)
+              val pathSymReplRef = core.ValRef(pathSymRepl)
+              val formatSymRepl = replacements(formatSym)
+              val formatSymReplRef = core.ValRef(formatSymRepl)
+
+              if (defcallargBecameSingSrc(pathSym) && defcallargBecameSingSrc(formatSym)) {
+                val dbRhs = core.DefCall(
+                Some(DB$.ref),
+                DB$.fromSingSrcReadCSV,
+                targs,
+                Seq(Seq(pathSymReplRef, formatSymReplRef))
+                )
+                val dbSym = newSymbol(owner, "db", dbRhs)
+                val db = core.ValDef(dbSym, dbRhs)
+                skip(db)
+
+                replacements += (lhs -> dbSym)
+                defs += (dbSym -> db)
+                db
+              } else {
+                vd
+              }
+            }
             // TODO
             case core.DefCall(_, DataBag$.readParquet, _, Seq(Seq(core.ValRef(argsym)))) => vd
 
@@ -200,10 +220,13 @@ trait LabyrinthCompiler extends Compiler {
               }
             }
 
+            // TODO TODO TODO IMPORTANT
+            // call on databag that does not return a databag (like edges.withFilter(fun$r1))
+
             // TODO multi-argument case...
             // somthing like add1(a) after [a] became databag [db$a]
             case dc @ core.DefCall(tgt, ms, targs, Seq(Seq(dcarg @ core.ValRef(argsym))))
-              if !refSeen(tgt, replacements) =>
+              if prePrint(vd) && !refSeen(tgt, replacements) =>
 
               val argSymRepl = replacements(argsym)
               val argReplRef = core.ValRef(argSymRepl)
@@ -225,6 +248,7 @@ trait LabyrinthCompiler extends Compiler {
               val ndc = core.DefCall(Some(argReplRef), DataBag.map, Seq(dc.tpe), Seq(Seq(funRefDef._1)))
               val ns = newSymbol(owner, "dbMap", ndc)
               val ndcRefDef = valRefAndDef(ns, ndc)
+              defs += (ns -> ndcRefDef._2)
               skip(ndcRefDef._2)
 
               // add lambda definition and new defcall to new letblock - eliminated by unnest
@@ -233,8 +257,10 @@ trait LabyrinthCompiler extends Compiler {
               val nvdSym = api.ValSym(owner, api.TermName.fresh("map"), nlb.tpe.widen)
               val nvdRefDef = valRefAndDef(nvdSym, nlb)
               replacements += (lhs -> nvdSym)
-              // refs += (nvdSym -> nvdRefDef._1)
+              defs += (nvdSym -> nvdRefDef._2)
               skip(nvdRefDef._2)
+
+              postPrint(nvdRefDef._2)
 
               nvdRefDef._2
 
@@ -403,6 +429,7 @@ trait LabyrinthCompiler extends Compiler {
           val dbRhsDC = core.DefCall(Some(DB$.ref), DB$.singSrc, Seq(rhs.tpe), Seq(Seq(lRefDef._1)))
           val dbRhsDCSym = newSymbol(owner, "dbRhs", dbRhsDC)
           val dbRhsDCRefDef = valRefAndDef(dbRhsDCSym, dbRhsDC)
+          skip(dbRhsDCRefDef._1)
           skip(dbRhsDCRefDef._2)
           val dbRhs = core.Let(Seq(lRefDef._2, dbRhsDCRefDef._2), Seq(), dbRhsDCRefDef._1)
           val dbSym = newSymbol(owner, "db", dbRhsDC)
@@ -506,6 +533,13 @@ trait LabyrinthCompiler extends Compiler {
     tree.tpe.widen.typeConstructor =:= API.DataBag.tpe
   }
 
+  private def isCustomDatabag(tree: u.Tree): Boolean = {
+    val a = tree.tpe.widen.typeConstructor =:= API.DataBag.tpe
+    val b = meta(tree).all.all.contains(SkipTraversal)
+    println(b)
+    a && b
+  }
+
   // check if a symbol refers to a function
   def isFun(sym: u.TermSymbol) = api.Sym.funs(sym.info.dealias.widen.typeSymbol)
   def isFun(sym: u.Symbol) = api.Sym.funs(sym.info.dealias.widen.typeSymbol)
@@ -539,6 +573,7 @@ trait LabyrinthCompiler extends Compiler {
     val singSrc = op("singSrc")
     val fromSingSrcApply = op("fromSingSrcApply")
     val fromSingSrcReadText = op("fromSingSrcReadText")
+    val fromSingSrcReadCSV = op("fromSingSrcReadCSV")
     val fromDatabagWriteCSV = op("fromDatabagWriteCSV")
 
     val cross3 = op("cross3")
@@ -567,6 +602,12 @@ object DB {
   def fromSingSrcReadText[A: org.emmalanguage.api.Meta](db: org.emmalanguage.api.DataBag[String]):
   org.emmalanguage.api.DataBag[String] = {
     org.emmalanguage.api.DataBag.readText(db.collect().head)
+  }
+
+  def fromSingSrcReadCSV[A: Meta : CSVConverter](
+    path: org.emmalanguage.api.DataBag[String],format: org.emmalanguage.api.DataBag[org.emmalanguage.api.CSV]
+  ): org.emmalanguage.api.DataBag[A] = {
+    org.emmalanguage.api.DataBag.readCSV[A](path.collect().head, format.collect().head)
   }
 
   def fromDatabagWriteCSV[A: org.emmalanguage.api.Meta](

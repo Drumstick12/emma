@@ -18,7 +18,7 @@ package cli
 
 import api._
 //import examples.graphs.ConnectedComponents
-//import examples.graphs.EnumerateTriangles
+import examples.graphs.EnumerateTriangles
 //import examples.graphs.model.Edge
 import util.Iso
 
@@ -28,7 +28,7 @@ import org.apache.flink.streaming.api.scala.StreamExecutionEnvironment
 
 import scala.reflect.ClassTag
 //import examples.graphs._
-//import examples.graphs.model._
+import examples.graphs.model._
 import examples.text._
 //import util.Iso
 
@@ -106,14 +106,14 @@ object LabyrinthExamplesRunner extends LabyrinthAware {
       cfg <- parser.parse(args, Config())
       cmd <- cfg.command
       res <- cmd match {
-//        // Graphs
+        // Graphs
 //        case "connected-components" =>
 //          Some(connectedComponents(cfg)(flinkEnv(cfg)))
-//        case "triangle-count" =>
-//          Some(triangleCount(cfg)(flinkEnv(cfg)))
-        // Text
-        case "word-count" =>
-          Some(wordCount(cfg)(flinkEnv(cfg)))
+        case "triangle-count" =>
+          Some(triangleCount(cfg)(flinkEnv(cfg)))
+//        // Text
+//        case "word-count" =>
+//          Some(wordCount(cfg)(flinkEnv(cfg)))
         case _ =>
           None
       }
@@ -137,30 +137,30 @@ object LabyrinthExamplesRunner extends LabyrinthAware {
 //      // write the results into a file
 //      paths.writeCSV(c.output, c.csv)
 //    }
-//
-//  def triangleCount(c: Config)(implicit flink: StreamExecutionEnvironment): Unit =
-//    emma.onLabyrinth {
-//      // convert a bag of directed edges into an undirected set
-//      val incoming = DataBag.readCSV[Edge[Long]](c.input, c.csv)
-//      val outgoing = incoming.map(e => Edge(e.dst, e.src))
-//      val edges = (incoming union outgoing).distinct
-//      // compute all triangles
-//      val triangles = EnumerateTriangles(edges)
-//      // count the number of enumerated triangles
-//      val triangleCount = triangles.size
-//      // print the result to the console
-//      println(s"The number of triangles in the graph is $triangleCount")
-//    }
 
-  def wordCount(c: Config)(implicit flink: StreamExecutionEnvironment): Unit =
+  def triangleCount(c: Config)(implicit flink: StreamExecutionEnvironment): Unit =
     emma.onLabyrinth {
-      // read the input files and split them into lowercased words
-      val docs = DataBag.readText(c.input)
-      // parse and count the words
-      val counts = WordCount(docs)
-      // write the results into a file
-      counts.writeCSV(c.output, c.csv)
+      // convert a bag of directed edges into an undirected set
+      val incoming = DataBag.readCSV[Edge[Long]](c.input, c.csv)
+      val outgoing = incoming.map(e => Edge(e.dst, e.src))
+      val edges = (incoming union outgoing).distinct
+      // compute all triangles
+      val triangles = EnumerateTriangles(edges)
+      // count the number of enumerated triangles
+      val triangleCount = triangles.size
+      // print the result to the console
+      println(s"The number of triangles in the graph is $triangleCount")
     }
+
+//  def wordCount(c: Config)(implicit flink: StreamExecutionEnvironment): Unit =
+//    emma.onLabyrinth {
+//      // read the input files and split them into lowercased words
+//      val docs = DataBag.readText(c.input)
+//      // parse and count the words
+//      val counts = WordCount(docs)
+//      // write the results into a file
+//      counts.writeCSV(c.output, c.csv)
+//    }
 
   // ---------------------------------------------------------------------------
   // Helper methods
