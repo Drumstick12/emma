@@ -225,7 +225,20 @@ trait LabyrinthCompiler extends Compiler {
             // val db = ...
             // val alg = ...
             // val db = DB.foldToBagAlg[A,B](db, alg)
-            case dc @ core.DefCall(tgt, DB$.foldToBagAlg, targs, Seq(Seq(alg))) if prePrint(dc) => {
+            case dc @ core.DefCall(Some(core.ValRef(tgtSym)), DataBag.fold1, targs, Seq(Seq(alg)))
+              if prePrint(dc) => {
+              val tgtReplSym = replacements(tgtSym)
+
+//
+//              val blockFinal = core.Let(Seq(lambdaRefDef._2, mapDCRefDef._2), Seq(), mapDCRefDef._1)
+//              val blockFinalSym = newSymbol(owner, "db", blockFinal)
+//              val blockFinalRefDef = valRefAndDef(blockFinalSym, blockFinal)
+//              skip(blockFinalRefDef._2)
+//
+//              replacements += (lhs -> blockFinalSym)
+//              defs += (blockFinalSym -> blockFinalRefDef._2)
+//
+//              blockFinalRefDef._2
 
               vd
             }
@@ -241,8 +254,32 @@ trait LabyrinthCompiler extends Compiler {
             // val init: (A => B) = ...
             // val plus: (B => B) = ...
             // val db = DB.foldToBag[A,B](db, zero, init, plus)
-            case dc @ core.DefCall(tgt, DB$.foldToBagAlg, targs, Seq(Seq(zero), Seq(init, plus))) => {
-              vd
+            case dc @ core.DefCall(Some(core.ValRef(tgtSym)), DataBag.fold2, targs, Seq(Seq(zero), Seq(init, plus))) =>
+            {
+              val tgtSymRepl = replacements(tgtSym)
+              val tgtRepl = core.ValRef(tgtSymRepl)
+
+              val inTpe = tgtSym.info.typeArgs.head
+              val outTpe = targs.head
+              val targsRepl = Seq(inTpe, outTpe)
+
+              val ndc = core.DefCall(
+                Some(DB$.ref),
+                DB$.foldToBag,
+                targsRepl,
+                Seq(Seq(tgtRepl, zero, init, plus))
+              )
+              val ndcRefDef = valRefAndDef(owner, "fold2", ndc)
+
+              val blockFinal = core.Let(Seq(ndcRefDef._2), Seq(), ndcRefDef._1)
+              val blockFinalSym = newSymbol(owner, "db", blockFinal)
+              val blockFinalRefDef = valRefAndDef(blockFinalSym, blockFinal)
+              skip(blockFinalRefDef._2)
+
+              replacements += (lhs -> blockFinalSym)
+              defs += (blockFinalSym -> blockFinalRefDef._2)
+
+              blockFinalRefDef._2
             }
 
             // if there is 1 non-constant argument inside the defcall, call map on argument databag
@@ -280,7 +317,7 @@ trait LabyrinthCompiler extends Compiler {
               skip(mapDCRefDef._2)
 
               val blockFinal = core.Let(Seq(lambdaRefDef._2, mapDCRefDef._2), Seq(), mapDCRefDef._1)
-              val blockFinalSym = newSymbol(owner, "res", blockFinal)
+              val blockFinalSym = newSymbol(owner, "db", blockFinal)
               val blockFinalRefDef = valRefAndDef(blockFinalSym, blockFinal)
               skip(blockFinalRefDef._2)
 
@@ -349,7 +386,7 @@ trait LabyrinthCompiler extends Compiler {
               skip(mapDCRefDef._2)
 
               val blockFinal = core.Let(Seq(crossRefDef._2, lambdaRefDef._2, mapDCRefDef._2), Seq(), mapDCRefDef._1)
-              val blockFinalSym = newSymbol(owner, "res", blockFinal)
+              val blockFinalSym = newSymbol(owner, "db", blockFinal)
               val blockFinalRefDef = valRefAndDef(blockFinalSym, blockFinal)
               skip(blockFinalRefDef._2)
 
@@ -428,7 +465,7 @@ trait LabyrinthCompiler extends Compiler {
               skip(mapDCRefDef._2)
 
               val blockFinal = core.Let(Seq(crossRefDef._2, lambdaRefDef._2, mapDCRefDef._2), Seq(), mapDCRefDef._1)
-              val blockFinalSym = newSymbol(owner, "res", blockFinal)
+              val blockFinalSym = newSymbol(owner, "db", blockFinal)
               val blockFinalRefDef = valRefAndDef(blockFinalSym, blockFinal)
               skip(blockFinalRefDef._2)
 

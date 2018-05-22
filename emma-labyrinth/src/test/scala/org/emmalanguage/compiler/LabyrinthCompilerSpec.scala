@@ -181,10 +181,10 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
         c
       }
       val exp = reify {
-        val a = DB.singSrc( () => 1 )
+        val a = DB.singSrc( () => { val tmp = 1; tmp } )
         val s = a.map( i => Seq(i) )
         val b: DataBag[Int] = DB.fromSingSrcApply(s)
-        val c: DataBag[Int] = DB.foldToBag( b, 0, i => i, (a,b) => a + b )
+        val c: DataBag[Int] = DB.foldToBag[Int, Int]( b, 0, (i: Int) => i, (a,b) => a + b )
         c
       }
 
