@@ -19,6 +19,7 @@ package compiler
 import api.DataBag
 import api.backend.LocalOps._
 import api._
+import org.emmalanguage.api.alg.Size
 
 class TestInt(var v: Int) {
   def addd(u: Int, w: Int, x: Int)(m: Int, n: Int)(s: Int, t: Int) : Int =
@@ -172,7 +173,26 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
       applyXfrm(labyrinthNormalize)(inp) shouldBe alphaEqTo(anfPipeline(exp))
     }
 
-    "method one argument 3" in {
+    "method fold1" in {
+      val inp = reify {
+        val a = 1;
+        val s = Seq(a)
+        val b = DataBag(s)
+        val c: Long = b.size
+        c
+      }
+      val exp = reify {
+        val a = DB.singSrc( () => { val tmp = 1; tmp } )
+        val s = a.map( i => Seq(i) )
+        val b: DataBag[Int] = DB.fromSingSrcApply(s)
+        val c: DataBag[Long] = DB.fold1[Int, Long](b, Size)
+        c
+      }
+
+      applyXfrm(labyrinthNormalize)(inp) shouldBe alphaEqTo(anfPipeline(exp))
+    }
+
+    "method fold2" in {
       val inp = reify {
         val a = 1;
         val s = Seq(a)
@@ -184,7 +204,7 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
         val a = DB.singSrc( () => { val tmp = 1; tmp } )
         val s = a.map( i => Seq(i) )
         val b: DataBag[Int] = DB.fromSingSrcApply(s)
-        val c: DataBag[Int] = DB.foldToBag[Int, Int]( b, 0, (i: Int) => i, (a,b) => a + b )
+        val c: DataBag[Int] = DB.fold2[Int, Int]( b, 0, (i: Int) => i, (a,b) => a + b )
         c
       }
 

@@ -254,7 +254,7 @@ trait LabyrinthCompiler extends Compiler {
             // val init: (A => B) = ...
             // val plus: (B => B) = ...
             // val db = DB.foldToBag[A,B](db, zero, init, plus)
-            case dc @ core.DefCall(Some(core.ValRef(tgtSym)), DataBag.fold2, targs, Seq(Seq(zero), Seq(init, plus))) =>
+            case core.DefCall(Some(core.ValRef(tgtSym)), DataBag.fold2, targs, Seq(Seq(zero), Seq(init, plus))) =>
             {
               val tgtSymRepl = replacements(tgtSym)
               val tgtRepl = core.ValRef(tgtSymRepl)
@@ -263,12 +263,7 @@ trait LabyrinthCompiler extends Compiler {
               val outTpe = targs.head
               val targsRepl = Seq(inTpe, outTpe)
 
-              val ndc = core.DefCall(
-                Some(DB$.ref),
-                DB$.foldToBag,
-                targsRepl,
-                Seq(Seq(tgtRepl, zero, init, plus))
-              )
+              val ndc = core.DefCall(Some(DB$.ref), DB$.fold2, targsRepl, Seq(Seq(tgtRepl, zero, init, plus)))
               val ndcRefDef = valRefAndDef(owner, "fold2", ndc)
 
               val blockFinal = core.Let(Seq(ndcRefDef._2), Seq(), ndcRefDef._1)
@@ -646,8 +641,8 @@ trait LabyrinthCompiler extends Compiler {
     val fromSingSrcReadText = op("fromSingSrcReadText")
     val fromSingSrcReadCSV = op("fromSingSrcReadCSV")
     val fromDatabagWriteCSV = op("fromDatabagWriteCSV")
-    val foldToBagAlg = op("foldToBagAlg")
-    val foldToBag = op("foldToBag")
+    val fold1 = op("fold1")
+    val fold2 = op("fold2")
 
     val cross3 = op("cross3")
 
@@ -692,13 +687,15 @@ object DB {
     singSrc( () => db.writeCSV(path.collect()(0), format.collect()(0))(converter) )
   }
 
-  def foldToBagAlg[A: org.emmalanguage.api.Meta, B: org.emmalanguage.api.Meta]
+  // fold Alg
+  def fold1[A: org.emmalanguage.api.Meta, B: org.emmalanguage.api.Meta]
   (db: org.emmalanguage.api.DataBag[A], alg: Alg[A,B])
   : org.emmalanguage.api.DataBag[B] = {
     org.emmalanguage.api.DataBag(Seq(db.fold[B](alg)))
   }
 
-  def foldToBag[A: org.emmalanguage.api.Meta, B: org.emmalanguage.api.Meta]
+  // fold classic
+  def fold2[A: org.emmalanguage.api.Meta, B: org.emmalanguage.api.Meta]
   ( db: org.emmalanguage.api.DataBag[A], zero: B, init: A => B, plus: (B,B) => B )
   : org.emmalanguage.api.DataBag[B] = {
     org.emmalanguage.api.DataBag(Seq(db.fold(zero)(init, plus)))
