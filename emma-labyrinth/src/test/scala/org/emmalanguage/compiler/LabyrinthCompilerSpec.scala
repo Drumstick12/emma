@@ -20,9 +20,11 @@ import api.DataBag
 import api.backend.LocalOps._
 import api._
 
-class TestInt(v: Int) {
+class TestInt(var v: Int) {
   def addd(u: Int, w: Int, x: Int)(m: Int, n: Int)(s: Int, t: Int) : Int =
     this.v + u + w + x + m + n + s + t
+
+  def add1() : Unit = { v = v + 1 }
 }
 
 class LabyrinthCompilerSpec extends BaseCompilerSpec
@@ -155,9 +157,38 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
       applyXfrm(labyrinthNormalize)(inp) shouldBe alphaEqTo(anfPipeline(exp))
     }
 
-    // TODO
-    "TODO" in {
-      //edges.withFilter(fun$r1)
+    "method one argument 2" in {
+      val inp = reify {
+        val a = new TestInt(1);
+        val b = a.add1()
+        a
+      }
+      val exp = reify {
+        val a = DB.singSrc(() => { val tmp = new TestInt(1); tmp });
+        val b = a.map( (e: TestInt) => e.add1());
+        a
+      }
+
+      applyXfrm(labyrinthNormalize)(inp) shouldBe alphaEqTo(anfPipeline(exp))
+    }
+
+    "method one argument 3" in {
+      val inp = reify {
+        val a = 1;
+        val s = Seq(a)
+        val b = DataBag(s)
+        val c: Int = b.fold(0)(i => i, (a,b) => a + b)
+        c
+      }
+      val exp = reify {
+        val a = DB.singSrc( () => 1 )
+        val s = a.map( i => Seq(i) )
+        val b = DB.fromSingSrcApply(s)
+        val c = b.map( (db: org.emmalanguage.api.DataBag[Int]) => db.fold(0)(i => i, (a,b) => a + b) )
+        c
+      }
+
+      applyXfrm(labyrinthNormalize)(inp) shouldBe alphaEqTo(anfPipeline(exp))
     }
 
     "method one argument typechange" in {
@@ -255,46 +286,7 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
     }
 
     "triangles" in {
-      val inp = reify {
-//        val e = Edge(1, 2)
-//        val edges = Seq(e)
-//        val triangles = for {
-//          Edge(x, u) <- edges
-//          if x == u
-//        } yield Edge(x, u)
-//        // return
-//        triangles
 
-        val e = Edge.apply[Int](1, 2);
-        val edges = Seq.apply[org.emmalanguage.compiler.Edge[Int]](e);
-        val fun$r1 = ((check$ifrefutable$1: org.emmalanguage.compiler.Edge[Int]) => {
-          val x$r2 = check$ifrefutable$1.src;
-          val u$r2 = check$ifrefutable$1.dst;
-          true
-        });
-        val anf$r5 = edges.withFilter(fun$r1);
-        val fun$r2 = ((x$3: org.emmalanguage.compiler.Edge[Int]) => {
-          val x$r1 = x$3.src;
-          val u = x$3.dst;
-          val anf$r8 = x$r1.==(u);
-          anf$r8
-        });
-        val anf$r9 = anf$r5.withFilter(fun$r2);
-        val fun$r3 = ((x$4: org.emmalanguage.compiler.Edge[Int]) => {
-          val x = x$4.src;
-          val u$r1 = x$4.dst;
-          val anf$r12 = Edge.apply[Int](x, u$r1);
-          anf$r12
-        });
-        val anf$r13 = Seq.canBuildFrom[org.emmalanguage.compiler.Edge[Int]];
-        val triangles = anf$r9.map[org.emmalanguage.compiler.Edge[Int],
-          Seq[org.emmalanguage.compiler.Edge[Int]]](fun$r3)(anf$r13);
-        triangles
-      }
-
-      val exp = reify { 1 }
-
-      applyXfrm(labyrinthNormalize)(inp) shouldBe alphaEqTo(anfPipeline(exp))
     }
 
     // this is not yet suppported, if I'm not mistaken

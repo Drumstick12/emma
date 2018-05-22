@@ -86,14 +86,6 @@ trait LabyrinthCompiler extends Compiler {
           def defcallargBecameSingSrc(s: u.TermSymbol) : Boolean = {
             val argSymRepl = replacements(s)
             val argReplDef = defs(argSymRepl)
-            // argReplDef.rhs match {
-            //   case core.Let(_, _, r @ core.ValRef(sym)) =>
-            //     defs(sym) match {
-            //       case core.ValDef(_, core.DefCall(_, DB$.singSrc, _, _)) => true
-            //       case _ => false
-            //     }
-            //   case _ => false
-            // }
             isDatabag(argReplDef.rhs) && meta(argReplDef).all.all.contains(SkipTraversal)
           }
 
@@ -191,7 +183,10 @@ trait LabyrinthCompiler extends Compiler {
               }
             }
             // TODO
-            case core.DefCall(_, DataBag$.readParquet, _, Seq(Seq(core.ValRef(argsym)))) => vd
+            case core.DefCall(_, DataBag$.readParquet, _, Seq(Seq(core.ValRef(argsym)))) => {
+              assert(false, "NOT YET IMPLEMENTED")
+              vd
+            }
 
             case core.DefCall(Some(tgt), DataBag.writeCSV, _,
             Seq(Seq(core.ValRef(pathSym), core.ValRef(csvSym)))
@@ -220,19 +215,27 @@ trait LabyrinthCompiler extends Compiler {
               }
             }
 
-            // TODO TODO TODO IMPORTANT
-            // call on databag that does not return a databag (like edges.withFilter(fun$r1))
+            // if there is 1 non-constant argument inside the defcall, call map on argument databag
+            case dc @ core.DefCall(_, _, _, _) if prePrint(dc) && countSeenRefs(dc, replacements)==1 =>
+              val refs = dc.collect{
+                case vr @ core.ValRef(_) => vr
+              }
+              // here we have to use ref names to compare different refs refering to the same valdef
+              val nonC = refs.filter(e => replacements.keys.toList.map(_.name).contains(e.name))
 
-            // TODO multi-argument case...
-            // somthing like add1(a) after [a] became databag [db$a]
-            case dc @ core.DefCall(tgt, ms, targs, Seq(Seq(dcarg @ core.ValRef(argsym))))
-              if prePrint(vd) && !refSeen(tgt, replacements) =>
+              val x = nonC(0) match { case core.ValRef(sym) => core.ValRef(replacements(sym)) }
 
-              val argSymRepl = replacements(argsym)
-              val argReplRef = core.ValRef(argSymRepl)
+              val lbdaSym = api.ParSym(owner, api.TermName.fresh("t"), nonC(0).tpe.widen)
+              val lbdaRef = core.ParRef(lbdaSym)
+              //   lambda = t -> {
+              //     t.f(c1, ..., ck)(impl ...)
+              //   }
 
-              val lbdaSym = api.ParSym(owner, api.TermName.fresh("lmbda"), dcarg.tpe)
-              val lmbdaRhsDC = core.DefCall(tgt, ms, targs, Seq(Seq(core.ParRef(lbdaSym))))
+              val m = Map(nonC(0) -> lbdaRef)
+
+              val lmbdaRhsDC = api.TopDown.transform{
+                case v @ core.ValRef(_) => if (m.keys.toList.contains(v)) m(v) else v
+              }._tree(dc)
               val lmbdaRhsDCRefDef = valRefAndDef(owner, "lbdaRhs", lmbdaRhsDC)
               skip(lmbdaRhsDCRefDef._2)
               val lmbdaRhs = core.Let(Seq(lmbdaRhsDCRefDef._2), Seq(), lmbdaRhsDCRefDef._1)
@@ -240,29 +243,21 @@ trait LabyrinthCompiler extends Compiler {
                 Seq(lbdaSym),
                 lmbdaRhs
               )
+              val lambdaRefDef = valRefAndDef(owner, "lambda", lmbda)
 
-              val funSym = api.ValSym(owner, api.TermName.fresh("fun"), lmbda.tpe.widen)
-              val funRefDef = valRefAndDef(funSym, lmbda)
-              skip(funRefDef._2)
+              val mapDC = core.DefCall(Some(x), DataBag.map, Seq(dc.tpe), Seq(Seq(lambdaRefDef._1)))
+              val mapDCRefDef = valRefAndDef(owner, "map", mapDC)
+              skip(mapDCRefDef._2)
 
-              val ndc = core.DefCall(Some(argReplRef), DataBag.map, Seq(dc.tpe), Seq(Seq(funRefDef._1)))
-              val ns = newSymbol(owner, "dbMap", ndc)
-              val ndcRefDef = valRefAndDef(ns, ndc)
-              defs += (ns -> ndcRefDef._2)
-              skip(ndcRefDef._2)
+              val blockFinal = core.Let(Seq(lambdaRefDef._2, mapDCRefDef._2), Seq(), mapDCRefDef._1)
+              val blockFinalSym = newSymbol(owner, "res", blockFinal)
+              val blockFinalRefDef = valRefAndDef(blockFinalSym, blockFinal)
+              skip(blockFinalRefDef._2)
 
-              // add lambda definition and new defcall to new letblock - eliminated by unnest
-              val nlb = core.Let(Seq(funRefDef._2, ndcRefDef._2), Seq(), ndcRefDef._1)
+              replacements += (lhs -> blockFinalSym)
+              defs += (blockFinalSym -> blockFinalRefDef._2)
 
-              val nvdSym = api.ValSym(owner, api.TermName.fresh("map"), nlb.tpe.widen)
-              val nvdRefDef = valRefAndDef(nvdSym, nlb)
-              replacements += (lhs -> nvdSym)
-              defs += (nvdSym -> nvdRefDef._2)
-              skip(nvdRefDef._2)
-
-              postPrint(nvdRefDef._2)
-
-              nvdRefDef._2
+              blockFinalRefDef._2
 
             // if there are 2 non-constant arguments inside the defcall, cross and apply the defcall method to the tuple
             case dc @ core.DefCall(_, _, _, _) if prePrint(dc) && countSeenRefs(dc, replacements)==2 =>
@@ -271,9 +266,12 @@ trait LabyrinthCompiler extends Compiler {
               }
               // here we have to use ref names to compare different refs refering to the same valdef
               val nonC = refs.filter(e => replacements.keys.toList.map(_.name).contains(e.name))
+              val nonCReplRefs = nonC.map {
+                case core.ValRef(sym) => core.ValRef(replacements(sym))
+              }
 
-              val targsRepls = nonC.map(_.tpe)
-              val crossDc = core.DefCall(Some(Ops.ref), Ops.cross, targsRepls, Seq(nonC))
+              val targsRepls = nonC.map(_.tpe.widen)
+              val crossDc = core.DefCall(Some(Ops.ref), Ops.cross, targsRepls, Seq(nonCReplRefs))
               skip(crossDc)
 
               val x = nonC(0)
@@ -326,6 +324,7 @@ trait LabyrinthCompiler extends Compiler {
               skip(blockFinalRefDef._2)
 
               replacements += (lhs -> blockFinalSym)
+              defs += (blockFinalSym -> blockFinalRefDef._2)
 
               blockFinalRefDef._2
 
@@ -335,9 +334,12 @@ trait LabyrinthCompiler extends Compiler {
                 case vr @ core.ValRef(_) => vr
               }
               val nonC = refs.filter(e => replacements.keys.toList.map(_.name).contains(e.name))
+              val nonCReplRefs = nonC.map {
+                case core.ValRef(sym) => core.ValRef(replacements(sym))
+              }
 
-              val targsRepls = nonC.map(_.tpe)
-              val crossDc = core.DefCall(Some(DB$.ref), DB$.cross3, targsRepls, Seq(nonC))
+              val targsRepls = nonC.map(_.tpe.widen)
+              val crossDc = core.DefCall(Some(DB$.ref), DB$.cross3, targsRepls, Seq(nonCReplRefs))
               skip(crossDc)
 
               val x = nonC(0)
@@ -401,6 +403,7 @@ trait LabyrinthCompiler extends Compiler {
               skip(blockFinalRefDef._2)
 
               replacements += (lhs -> blockFinalSym)
+              defs += (blockFinalSym -> blockFinalRefDef._2)
 
               blockFinalRefDef._2
 
@@ -495,10 +498,11 @@ trait LabyrinthCompiler extends Compiler {
     println(t.tpe.widen)
     t match {
       case core.Let(vals, _, expr) =>
-        print("vals: ")
-        println(vals)
-        print(" expression: ")
-        println(expr)
+//        print("vals: ")
+//        println(vals)
+//        print(" expression: ")
+//        println(expr)
+        ()
       case _ => ()
     }
   }

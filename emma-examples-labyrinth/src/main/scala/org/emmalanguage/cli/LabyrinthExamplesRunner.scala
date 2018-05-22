@@ -17,8 +17,8 @@ package org.emmalanguage
 package cli
 
 import api._
-//import examples.graphs.ConnectedComponents
 import examples.graphs.EnumerateTriangles
+import org.emmalanguage.examples.graphs.model
 //import examples.graphs.model.Edge
 import util.Iso
 
@@ -72,16 +72,6 @@ object LabyrinthExamplesRunner extends LabyrinthAware {
       })
 
     section("Graph Analytics")
-    cmd("connected-components")
-      .text("Label undirected graph vertices with component IDs")
-      .children(
-        arg[String]("input")
-          .text("edges path")
-          .action((x, c) => c.copy(input = x)),
-        arg[String]("output")
-          .text("labeled vertices path")
-          .action((x, c) => c.copy(output = x)))
-    note("")
     cmd("triangle-count")
       .text("Count the number of triangle cliques in a graph")
       .children(
@@ -107,8 +97,6 @@ object LabyrinthExamplesRunner extends LabyrinthAware {
       cmd <- cfg.command
       res <- cmd match {
         // Graphs
-//        case "connected-components" =>
-//          Some(connectedComponents(cfg)(flinkEnv(cfg)))
         case "triangle-count" =>
           Some(triangleCount(cfg)(flinkEnv(cfg)))
 //        // Text
@@ -128,24 +116,15 @@ object LabyrinthExamplesRunner extends LabyrinthAware {
 
   // Graphs
 
-//  def connectedComponents(c: Config)(implicit flink: StreamExecutionEnvironment): Unit =
-//    emma.onLabyrinth {
-//      // read in set of edges to be used as input
-//      val edges = DataBag.readCSV[Edge[Long]](c.input, c.csv)
-//      // build the connected components
-//      val paths = ConnectedComponents(edges)
-//      // write the results into a file
-//      paths.writeCSV(c.output, c.csv)
-//    }
-
   def triangleCount(c: Config)(implicit flink: StreamExecutionEnvironment): Unit =
     emma.onLabyrinth {
       // convert a bag of directed edges into an undirected set
       val incoming = DataBag.readCSV[Edge[Long]](c.input, c.csv)
       val outgoing = incoming.map(e => Edge(e.dst, e.src))
-      val edges = (incoming union outgoing).distinct
+      //val edges = (incoming union outgoing).distinct
       // compute all triangles
-      val triangles = EnumerateTriangles(edges)
+      //val triangles = EnumerateTriangles(edges)
+      val triangles = DataBag(Seq(model.Edge(1,1)))
       // count the number of enumerated triangles
       val triangleCount = triangles.size
       // print the result to the console
