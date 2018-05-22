@@ -183,8 +183,8 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
       val exp = reify {
         val a = DB.singSrc( () => 1 )
         val s = a.map( i => Seq(i) )
-        val b = DB.fromSingSrcApply(s)
-        val c = b.map( (db: org.emmalanguage.api.DataBag[Int]) => db.fold(0)(i => i, (a,b) => a + b) )
+        val b: DataBag[Int] = DB.fromSingSrcApply(s)
+        val c: DataBag[Int] = DB.foldToBag( b, 0, i => i, (a,b) => a + b )
         c
       }
 
