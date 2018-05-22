@@ -18,6 +18,7 @@ package compiler
 
 import api.CSVConverter
 import org.emmalanguage.api.Meta
+import org.emmalanguage.api.alg.Alg
 
 import com.typesafe.config.Config
 import shapeless.::
@@ -184,7 +185,7 @@ trait LabyrinthCompiler extends Compiler {
             }
             // TODO
             case core.DefCall(_, DataBag$.readParquet, _, Seq(Seq(core.ValRef(argsym)))) => {
-              assert(false, "NOT YET IMPLEMENTED")
+              assert(false, "readParquet NOT YET IMPLEMENTED")
               vd
             }
 
@@ -213,6 +214,35 @@ trait LabyrinthCompiler extends Compiler {
               else {
                 vd
               }
+            }
+
+            // catch all cases of DataBag[A] => B, transform to DataBag[A] => DataBag[B]
+            // TODO fold Alg
+            // val db = ...
+            // val alg: Alg[A,B] = ...
+            // val nondb = db.fold[B](alg)
+            //=========================
+            // val db = ...
+            // val alg = ...
+            // val db = DB.foldToBagAlg[A,B](db, alg)
+            case dc @ core.DefCall(tgt, DB$.foldToBagAlg, targs, Seq(Seq(alg))) if prePrint(dc) => {
+
+              vd
+            }
+            // TODO fold regular
+            // val db = ...
+            // val zero: B = ...
+            // val init: (A => B) = ...
+            // val plus: (B => B) = ...
+            // val nondb = db.fold[B](zero)(init, plus)
+            //=========================
+            // val db = ...
+            // val zero: B = ...
+            // val init: (A => B) = ...
+            // val plus: (B => B) = ...
+            // val db = DB.foldToBag[A,B](db, zero, init, plus)
+            case dc @ core.DefCall(tgt, DB$.foldToBagAlg, targs, Seq(Seq(zero), Seq(init, plus))) => {
+              vd
             }
 
             // if there is 1 non-constant argument inside the defcall, call map on argument databag
@@ -579,6 +609,8 @@ trait LabyrinthCompiler extends Compiler {
     val fromSingSrcReadText = op("fromSingSrcReadText")
     val fromSingSrcReadCSV = op("fromSingSrcReadCSV")
     val fromDatabagWriteCSV = op("fromDatabagWriteCSV")
+    val foldToBagAlg = op("foldToBagAlg")
+    val foldToBag = op("foldToBag")
 
     val cross3 = op("cross3")
 
@@ -621,6 +653,18 @@ object DB {
     implicit converter: CSVConverter[A]
   ) : org.emmalanguage.api.DataBag[Unit] = {
     singSrc( () => db.writeCSV(path.collect()(0), format.collect()(0))(converter) )
+  }
+
+  def foldToBagAlg[A: org.emmalanguage.api.Meta, B: org.emmalanguage.api.Meta]
+  (db: org.emmalanguage.api.DataBag[A], alg: Alg[A,B])
+  : org.emmalanguage.api.DataBag[B] = {
+    org.emmalanguage.api.DataBag(Seq(db.fold[B](alg)))
+  }
+
+  def foldToBag[A: org.emmalanguage.api.Meta, B: org.emmalanguage.api.Meta]
+  ( db: org.emmalanguage.api.DataBag[A], zero: B, init: A => B, plus: (B,B) => B )
+  : org.emmalanguage.api.DataBag[B] = {
+    org.emmalanguage.api.DataBag(Seq(db.fold(zero)(init, plus)))
   }
 
   def cross3[A: org.emmalanguage.api.Meta, B: org.emmalanguage.api.Meta, C: org.emmalanguage.api.Meta](
