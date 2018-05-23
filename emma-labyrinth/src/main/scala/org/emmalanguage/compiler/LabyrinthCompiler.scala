@@ -226,22 +226,31 @@ trait LabyrinthCompiler extends Compiler {
             // val alg = ...
             // val db = DB.foldToBagAlg[A,B](db, alg)
             case dc @ core.DefCall(Some(core.ValRef(tgtSym)), DataBag.fold1, targs, Seq(Seq(alg)))
-              if prePrint(dc) => {
-              val tgtReplSym = replacements(tgtSym)
+              if prePrint(dc) =>
+              val tgtSymRepl =
+                if (replacements.keys.toList.map(_.name).contains(tgtSym.name)) replacements(tgtSym)
+                else tgtSym
+              val tgtRepl = core.ValRef(tgtSymRepl)
 
-//
-//              val blockFinal = core.Let(Seq(lambdaRefDef._2, mapDCRefDef._2), Seq(), mapDCRefDef._1)
-//              val blockFinalSym = newSymbol(owner, "db", blockFinal)
-//              val blockFinalRefDef = valRefAndDef(blockFinalSym, blockFinal)
-//              skip(blockFinalRefDef._2)
-//
-//              replacements += (lhs -> blockFinalSym)
-//              defs += (blockFinalSym -> blockFinalRefDef._2)
-//
-//              blockFinalRefDef._2
+              val inTpe = tgtSym.info.typeArgs.head
+              val outTpe = targs.head
+              val targsRepl = Seq(inTpe, outTpe)
 
-              vd
-            }
+              val ndc =
+                if (!isDatabag(alg)) core.DefCall(Some(DB$.ref), DB$.fold1, targsRepl, Seq(Seq(tgtRepl, alg)))
+                else core.DefCall(Some(DB$.ref), DB$.fold1fromSingSrc, targsRepl, Seq(Seq(tgtRepl, alg)))
+              val ndcRefDef = valRefAndDef(owner, "fold1", ndc)
+
+              val blockFinal = core.Let(Seq(ndcRefDef._2), Seq(), ndcRefDef._1)
+              val blockFinalSym = newSymbol(owner, "db", blockFinal)
+              val blockFinalRefDef = valRefAndDef(blockFinalSym, blockFinal)
+              skip(blockFinalRefDef._2)
+
+              replacements += (lhs -> blockFinalSym)
+              defs += (blockFinalSym -> blockFinalRefDef._2)
+
+              blockFinalRefDef._2
+
             // TODO fold regular
             // val db = ...
             // val zero: B = ...
@@ -255,8 +264,9 @@ trait LabyrinthCompiler extends Compiler {
             // val plus: (B => B) = ...
             // val db = DB.foldToBag[A,B](db, zero, init, plus)
             case core.DefCall(Some(core.ValRef(tgtSym)), DataBag.fold2, targs, Seq(Seq(zero), Seq(init, plus))) =>
-            {
-              val tgtSymRepl = replacements(tgtSym)
+              val tgtSymRepl =
+                if (replacements.keys.toList.map(_.name).contains(tgtSym.name)) replacements(tgtSym)
+                else tgtSym
               val tgtRepl = core.ValRef(tgtSymRepl)
 
               val inTpe = tgtSym.info.typeArgs.head
@@ -275,10 +285,10 @@ trait LabyrinthCompiler extends Compiler {
               defs += (blockFinalSym -> blockFinalRefDef._2)
 
               blockFinalRefDef._2
-            }
 
             // if there is 1 non-constant argument inside the defcall, call map on argument databag
-            case dc @ core.DefCall(_, _, _, _) if prePrint(dc) && countSeenRefs(dc, replacements)==1 =>
+            case dc @ core.DefCall(_, _, _, _)
+              if prePrint(dc) && countSeenRefs(dc, replacements)==1 && !isDatabag(dc) =>
               val refs = dc.collect{
                 case vr @ core.ValRef(_) => vr
               }
@@ -322,7 +332,8 @@ trait LabyrinthCompiler extends Compiler {
               blockFinalRefDef._2
 
             // if there are 2 non-constant arguments inside the defcall, cross and apply the defcall method to the tuple
-            case dc @ core.DefCall(_, _, _, _) if prePrint(dc) && countSeenRefs(dc, replacements)==2 =>
+            case dc @ core.DefCall(_, _, _, _)
+              if prePrint(dc) && countSeenRefs(dc, replacements)==2 && !isDatabag(dc)  =>
               val refs = dc.collect{
                 case vr @ core.ValRef(_) => vr
               }
@@ -391,7 +402,8 @@ trait LabyrinthCompiler extends Compiler {
               blockFinalRefDef._2
 
             // if there are 3 non-constant arguments inside the defcall, cross and apply the defcall method to the tuple
-            case dc @ core.DefCall(_, _, _, _) if prePrint(dc) && countSeenRefs(dc, replacements)==3 =>
+            case dc @ core.DefCall(_, _, _, _)
+              if prePrint(dc) && countSeenRefs(dc, replacements)==3 && !isDatabag(dc)  =>
               val refs = dc.collect{
                 case vr @ core.ValRef(_) => vr
               }
@@ -470,7 +482,6 @@ trait LabyrinthCompiler extends Compiler {
               blockFinalRefDef._2
 
             case _ => {
-              println
               vd
             }
 
@@ -642,6 +653,7 @@ trait LabyrinthCompiler extends Compiler {
     val fromSingSrcReadCSV = op("fromSingSrcReadCSV")
     val fromDatabagWriteCSV = op("fromDatabagWriteCSV")
     val fold1 = op("fold1")
+    val fold1fromSingSrc = op("fold1fromSingSrc")
     val fold2 = op("fold2")
 
     val cross3 = op("cross3")
@@ -692,6 +704,12 @@ object DB {
   (db: org.emmalanguage.api.DataBag[A], alg: Alg[A,B])
   : org.emmalanguage.api.DataBag[B] = {
     org.emmalanguage.api.DataBag(Seq(db.fold[B](alg)))
+  }
+
+  def fold1fromSingSrc[A: org.emmalanguage.api.Meta, B: org.emmalanguage.api.Meta]
+  (db: org.emmalanguage.api.DataBag[A], alg: org.emmalanguage.api.DataBag[Alg[A,B]])
+  : org.emmalanguage.api.DataBag[B] = {
+    org.emmalanguage.api.DataBag(Seq(db.fold[B](alg.collect().head)))
   }
 
   // fold classic
