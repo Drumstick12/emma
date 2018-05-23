@@ -17,20 +17,15 @@ package org.emmalanguage
 package cli
 
 import api._
-import examples.graphs.EnumerateTriangles
-import org.emmalanguage.examples.graphs.model
-//import examples.graphs.model.Edge
 import util.Iso
 
 import breeze.linalg.{Vector => Vec}
-
 import org.apache.flink.streaming.api.scala.StreamExecutionEnvironment
 
 import scala.reflect.ClassTag
-//import examples.graphs._
+import examples.graphs.EnumerateTriangles
 import examples.graphs.model._
 import examples.text._
-//import util.Iso
 
 object LabyrinthExamplesRunner extends LabyrinthAware {
   // Text
@@ -119,12 +114,13 @@ object LabyrinthExamplesRunner extends LabyrinthAware {
   def triangleCount(c: Config)(implicit flink: StreamExecutionEnvironment): Unit =
     emma.onLabyrinth {
       // convert a bag of directed edges into an undirected set
-      val incoming = DataBag.readCSV[Edge[Long]](c.input, c.csv)
+      // val incoming = DataBag.readCSV[Edge[Long]](c.input, c.csv)
+      val incoming = DataBag(Seq(Edge(1,2), Edge(2,3), Edge(3,1)))
       val outgoing = incoming.map(e => Edge(e.dst, e.src))
-      //val edges = (incoming union outgoing).distinct
+      val edges = (incoming union outgoing).distinct
       // compute all triangles
-      //val triangles = EnumerateTriangles(edges)
-      val triangles = DataBag(Seq(model.Edge(1,1)))
+      val triangles = EnumerateTriangles(edges)
+      // val triangles = DataBag(Seq(model.Edge(1,1)))
       // count the number of enumerated triangles
       val triangleCount = triangles.size
       // print the result to the console
