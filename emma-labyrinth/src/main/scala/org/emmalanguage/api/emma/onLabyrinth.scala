@@ -22,7 +22,7 @@ import scala.language.experimental.macros
 
 object onLabyrinth {
 
-  final def apply[T](e: T): T = macro LabyrinthMacro.onFlinkImpl1[T]
+  final def apply[T](e: T): T = macro LabyrinthMacro.onLabyrinthImpl1[T]
 
-  final def apply[T](config: String)(e: T): T = macro LabyrinthMacro.onFlinkImpl2[T]
+  final def apply[T](config: String)(e: T): T = macro LabyrinthMacro.onLabyrinthImpl2[T]
 }
