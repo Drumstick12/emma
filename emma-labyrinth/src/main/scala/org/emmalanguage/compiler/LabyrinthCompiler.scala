@@ -17,8 +17,8 @@ package org.emmalanguage
 package compiler
 
 import api.CSVConverter
-import org.emmalanguage.api.Meta
-import org.emmalanguage.api.alg.Alg
+import api.Meta
+import api.alg.Alg
 
 import com.typesafe.config.Config
 import shapeless.::
@@ -81,7 +81,7 @@ trait LabyrinthCompiler extends Compiler {
         // find a valdef - according to the rhs we have to do different transformations
         case Attr.inh(vd @ core.ValDef(lhs, rhs), owner :: _)
           if prePrint(vd) && !meta(vd).all.all.contains(SkipTraversal)
-            && refsSeen(rhs, replacements) && !isFun(lhs) && !isFun(owner) =>
+            && refsSeen(rhs, replacements) && !isFun(lhs) && !isFun(owner) && !isAlg(rhs) =>
 
           // helper function to make sure that arguments in a "fromSingSrc"-method are indeed singSources
           def defcallargBecameSingSrc(s: u.TermSymbol) : Boolean = {
@@ -216,8 +216,8 @@ trait LabyrinthCompiler extends Compiler {
               }
             }
 
+            // fold1
             // catch all cases of DataBag[A] => B, transform to DataBag[A] => DataBag[B]
-            // TODO fold Alg
             // val db = ...
             // val alg: Alg[A,B] = ...
             // val nondb = db.fold[B](alg)
@@ -251,7 +251,7 @@ trait LabyrinthCompiler extends Compiler {
 
               blockFinalRefDef._2
 
-            // TODO fold regular
+            // fold2
             // val db = ...
             // val zero: B = ...
             // val init: (A => B) = ...
@@ -490,7 +490,7 @@ trait LabyrinthCompiler extends Compiler {
         // if valdef rhs is not of type DataBag, turn it into a databag
         case Attr.inh(vd @ core.ValDef(lhs, rhs), owner :: _)
           if prePrint(vd) && !meta(vd).all.all.contains(SkipTraversal)
-            && !refsSeen(rhs, replacements) && !isDatabag(rhs) && !isFun(lhs) && !isFun(owner) =>
+            && !refsSeen(rhs, replacements) && !isDatabag(rhs) && !isFun(lhs) && !isFun(owner) && !isAlg(rhs) =>
 
           // create lambda () => rhs
           val rhsSym = newSymbol(owner, "lbda", rhs)
@@ -606,15 +606,13 @@ trait LabyrinthCompiler extends Compiler {
   }
 
   // check if a tree is of type databag
-  private def isDatabag(tree: u.Tree): Boolean = {
+  private def isDatabag(tree: u.Tree) : Boolean = {
     tree.tpe.widen.typeConstructor =:= API.DataBag.tpe
   }
 
-  private def isCustomDatabag(tree: u.Tree): Boolean = {
-    val a = tree.tpe.widen.typeConstructor =:= API.DataBag.tpe
-    val b = meta(tree).all.all.contains(SkipTraversal)
-    println(b)
-    a && b
+  private def isAlg(tree: u.Tree) : Boolean = {
+    val out = tree.tpe.widen.typeConstructor.baseClasses.contains(Alg$.sym)
+    out
   }
 
   // check if a symbol refers to a function
@@ -640,6 +638,11 @@ trait LabyrinthCompiler extends Compiler {
 
     val apply = op("apply")
 
+    override def ops = Set()
+  }
+
+  object Alg$ extends ClassAPI {
+    lazy val sym = api.Sym[org.emmalanguage.api.alg.Alg[Any, Any]].asClass
     override def ops = Set()
   }
 
