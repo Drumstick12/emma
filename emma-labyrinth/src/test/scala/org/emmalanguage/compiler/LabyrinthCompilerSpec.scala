@@ -252,6 +252,23 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
       applyXfrm(labyrinthNormalize)(inp) shouldBe alphaEqTo(anfPipeline(exp))
     }
 
+
+    "method collect" in {
+      val inp = reify {
+        val s = Seq(1)
+        val b = DataBag(s)
+        val c = b.collect()
+        c
+      }
+      val exp = reify {
+        val s = DB.singSrc(() => { val tmp = Seq(1); tmp })
+        val b: DataBag[Int] = DB.fromSingSrcApply(s)
+        val c = DB.collect(b)
+        c
+      }
+      applyXfrm(labyrinthNormalize)(inp) shouldBe alphaEqTo(anfPipeline(exp))
+    }
+
     "method one argument typechange" in {
       val inp = reify {
         val a = 1;
@@ -371,65 +388,6 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
 
       applyXfrm(labyrinthNormalize)(inp) shouldBe alphaEqTo(anfPipeline(exp))
     }
-
-//    "triangles" in {
-//      val inp = reify {
-//////        val incoming = DataBag.readCSV[Edge[Long]](c.input, c.csv)
-////        val incoming = DataBag(Seq(Edge(1,2), Edge(2,3), Edge(3,1)))
-////        val outgoing = incoming.map(e => Edge(e.dst, e.src))
-////        val edges = (incoming union outgoing).distinct
-////        val triangles = for {
-////          Edge(x, u) <- edges
-////          if u == x
-////        } yield Edge(x, u)
-////        // return
-////        triangles
-//
-//        val anf$m1: Edge[Int] = Edge.apply[Int](1, 2);
-//        val anf$m2: Edge[Int] = Edge.apply[Int](2, 3);
-//        val anf$m3: Edge[Int] = Edge.apply[Int](3, 1);
-//        val anf$m25: StringContext = StringContext.apply("The number of triangles in the graph is ", "");
-//        val fun$FlatMap$m1: Edge[Int] => org.emmalanguage.api.DataBag[Edge[Int]] =
-//          ((check$ifrefutable$1$m1: Edge[Int]) => {
-//          val ss$m1: Seq[Edge[Int]] = Seq.apply[Edge[Int]](check$ifrefutable$1$m1);
-//          val xs$m1: org.emmalanguage.api.DataBag[Edge[Int]] = DataBag.apply[Edge[Int]](ss$m1);
-//          val p$m1: Edge[Int] => Boolean = ((check$ifrefutable$1$m1: Edge[Int]) => {
-//            val x$m2: Int = check$ifrefutable$1$m1.src;
-//            val u$m1: Int = check$ifrefutable$1$m1.dst;
-//            val anf$m18: Boolean = u$m1.==(x$m2);
-//            anf$m18
-//          });
-//          val filtered$m1: org.emmalanguage.api.DataBag[Edge[Int]] = xs$m1.withFilter(p$m1);
-//          val f$m1: Edge[Int] => Edge[Int] = ((check$ifrefutable$1$m1: Edge[Int]) => {
-//            val x$m1: Int = check$ifrefutable$1$m1.src;
-//            val u$m2: Int = check$ifrefutable$1$m1.dst;
-//            val anf$m22: Edge[Int] = Edge.apply[Int](x$m1, u$m2);
-//            anf$m22
-//          });
-//          val ys$m1: org.emmalanguage.api.DataBag[Edge[Int]] = filtered$m1.map[Edge[Int]](f$m1);
-//          ys$m1
-//        });
-//        val alg$FlatMap$m1: org.emmalanguage.api.alg.FlatMap[Edge[Int],Edge[Int],Long] =
-//          FlatMap.apply[Edge[Int], Edge[Int], Long](fun$FlatMap$m1, Size);
-//        val anf$m4: Seq[Edge[Int]] = Seq.apply[Edge[Int]](anf$m1, anf$m2, anf$m3);
-//        val incoming: org.emmalanguage.api.DataBag[Edge[Int]] = DataBag.apply[Edge[Int]](anf$m4);
-//        val f$m2: Edge[Int] => Edge[Int] = ((e: Edge[Int]) => {
-//          val anf$m6: Int = e.dst;
-//          val anf$m7: Int = e.src;
-//          val anf$m8: Edge[Int] = Edge.apply[Int](anf$m6, anf$m7);
-//          anf$m8
-//        });
-//        val outgoing: org.emmalanguage.api.DataBag[Edge[Int]] = incoming.map[Edge[Int]](f$m2);
-//        val anf$m10: org.emmalanguage.api.DataBag[Edge[Int]] = incoming.union(outgoing);
-//        val edges: org.emmalanguage.api.DataBag[Edge[Int]] = anf$m10.distinct;
-//        val triangleCount: Long = edges.fold[Long](alg$FlatMap$m1);
-//        val anf$m26: String = anf$m25.s(triangleCount);
-//        val anf$m27: Unit = Predef.println(anf$m26);
-//        anf$m27
-//      }
-//
-//      applyXfrm(labyrinthNormalize)(inp)
-//    }
   }
 }
 
