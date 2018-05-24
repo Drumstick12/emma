@@ -216,6 +216,30 @@ trait LabyrinthCompiler extends Compiler {
               }
             }
 
+            // collect
+            case dc @ core.DefCall(Some(core.ValRef(tgtSym)), DataBag.collect, _, _)
+              if prePrint(dc) =>
+              val tgtSymRepl =
+                if (replacements.keys.toList.map(_.name).contains(tgtSym.name)) replacements(tgtSym)
+                else tgtSym
+              val tgtRepl = core.ValRef(tgtSymRepl)
+
+              val bagTpe = tgtSym.info.typeArgs.head
+              val targsRepl = Seq(bagTpe)
+
+              val ndc =core.DefCall(Some(DB$.ref), DB$.collect, targsRepl, Seq(Seq(tgtRepl)))
+              val ndcRefDef = valRefAndDef(owner, "collect", ndc)
+
+              val blockFinal = core.Let(Seq(ndcRefDef._2), Seq(), ndcRefDef._1)
+              val blockFinalSym = newSymbol(owner, "db", blockFinal)
+              val blockFinalRefDef = valRefAndDef(blockFinalSym, blockFinal)
+              skip(blockFinalRefDef._2)
+
+              replacements += (lhs -> blockFinalSym)
+              defs += (blockFinalSym -> blockFinalRefDef._2)
+
+              blockFinalRefDef._2
+
             // fold1
             // catch all cases of DataBag[A] => B, transform to DataBag[A] => DataBag[B]
             // val db = ...
@@ -236,9 +260,7 @@ trait LabyrinthCompiler extends Compiler {
               val outTpe = targs.head
               val targsRepl = Seq(inTpe, outTpe)
 
-              val ndc =
-                if (!isDatabag(alg)) core.DefCall(Some(DB$.ref), DB$.fold1, targsRepl, Seq(Seq(tgtRepl, alg)))
-                else core.DefCall(Some(DB$.ref), DB$.fold1fromSingSrc, targsRepl, Seq(Seq(tgtRepl, alg)))
+              val ndc =core.DefCall(Some(DB$.ref), DB$.fold1, targsRepl, Seq(Seq(tgtRepl, alg)))
               val ndcRefDef = valRefAndDef(owner, "fold1", ndc)
 
               val blockFinal = core.Let(Seq(ndcRefDef._2), Seq(), ndcRefDef._1)
@@ -650,14 +672,14 @@ trait LabyrinthCompiler extends Compiler {
 
     lazy val sym = api.Sym[DB.type].asModule
 
+    val collect = op("collect")
     val singSrc = op("singSrc")
+    val fold1 = op("fold1")
+    val fold2 = op("fold2")
     val fromSingSrcApply = op("fromSingSrcApply")
     val fromSingSrcReadText = op("fromSingSrcReadText")
     val fromSingSrcReadCSV = op("fromSingSrcReadCSV")
     val fromDatabagWriteCSV = op("fromDatabagWriteCSV")
-    val fold1 = op("fold1")
-    val fold1fromSingSrc = op("fold1fromSingSrc")
-    val fold2 = op("fold2")
 
     val cross3 = op("cross3")
 
@@ -709,17 +731,16 @@ object DB {
     org.emmalanguage.api.DataBag(Seq(db.fold[B](alg)))
   }
 
-  def fold1fromSingSrc[A: org.emmalanguage.api.Meta, B: org.emmalanguage.api.Meta]
-  (db: org.emmalanguage.api.DataBag[A], alg: org.emmalanguage.api.DataBag[Alg[A,B]])
-  : org.emmalanguage.api.DataBag[B] = {
-    org.emmalanguage.api.DataBag(Seq(db.fold[B](alg.collect().head)))
-  }
-
   // fold classic
   def fold2[A: org.emmalanguage.api.Meta, B: org.emmalanguage.api.Meta]
   ( db: org.emmalanguage.api.DataBag[A], zero: B, init: A => B, plus: (B,B) => B )
   : org.emmalanguage.api.DataBag[B] = {
     org.emmalanguage.api.DataBag(Seq(db.fold(zero)(init, plus)))
+  }
+
+  def collect[A: org.emmalanguage.api.Meta](db: org.emmalanguage.api.DataBag[A]) :
+  org.emmalanguage.api.DataBag[Seq[A]] = {
+    org.emmalanguage.api.DataBag(Seq(db.collect()))
   }
 
   def cross3[A: org.emmalanguage.api.Meta, B: org.emmalanguage.api.Meta, C: org.emmalanguage.api.Meta](
