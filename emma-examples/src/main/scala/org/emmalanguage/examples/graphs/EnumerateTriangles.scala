@@ -24,29 +24,19 @@ import scala.Ordering.Implicits._
 @emma.lib
 object EnumerateTriangles {
 
-//  def apply[V: Ordering: Meta](edges: DataBag[Edge[V]]): DataBag[Triangle[V]] = {
-//    // generate all triangles (x - v - w) such that x < v < w
-//    val triangles = for {
-//      Edge(x, u) <- edges
-//      Edge(y, v) <- edges
-//      Edge(z, w) <- edges
-//      if x < u
-//      if y < v
-//      if z < w
-//      if u == y
-//      if x == z
-//      if v == w
-//    } yield Triangle(x, u, v)
-//    // return
-//    triangles
-//  }
-
-  def apply[V: Ordering: Meta](edges: DataBag[Edge[V]]): DataBag[Edge[V]] = {
+  def apply[V: Ordering: Meta](edges: DataBag[Edge[V]]): DataBag[Triangle[V]] = {
     // generate all triangles (x - v - w) such that x < v < w
     val triangles = for {
       Edge(x, u) <- edges
-      if u == x
-    } yield Edge(x, u)
+      Edge(y, v) <- edges
+      Edge(z, w) <- edges
+      if x < u
+      if y < v
+      if z < w
+      if u == y
+      if x == z
+      if v == w
+    } yield Triangle(x, u, v)
     // return
     triangles
   }

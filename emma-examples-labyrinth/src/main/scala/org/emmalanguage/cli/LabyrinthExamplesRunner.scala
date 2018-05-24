@@ -94,9 +94,9 @@ object LabyrinthExamplesRunner extends LabyrinthAware {
         // Graphs
         case "triangle-count" =>
           Some(triangleCount(cfg)(flinkEnv(cfg)))
-//        // Text
-//        case "word-count" =>
-//          Some(wordCount(cfg)(flinkEnv(cfg)))
+        // Text
+        case "word-count" =>
+          Some(wordCount(cfg)(flinkEnv(cfg)))
         case _ =>
           None
       }
@@ -114,28 +114,26 @@ object LabyrinthExamplesRunner extends LabyrinthAware {
   def triangleCount(c: Config)(implicit flink: StreamExecutionEnvironment): Unit =
     emma.onLabyrinth {
       // convert a bag of directed edges into an undirected set
-      // val incoming = DataBag.readCSV[Edge[Long]](c.input, c.csv)
-      val incoming = DataBag(Seq(Edge(1,2), Edge(2,3), Edge(3,1)))
+      val incoming = DataBag.readCSV[Edge[Long]](c.input, c.csv)
       val outgoing = incoming.map(e => Edge(e.dst, e.src))
       val edges = (incoming union outgoing).distinct
       // compute all triangles
       val triangles = EnumerateTriangles(edges)
-      // val triangles = DataBag(Seq(model.Edge(1,1)))
       // count the number of enumerated triangles
       val triangleCount = triangles.size
       // print the result to the console
       println(s"The number of triangles in the graph is $triangleCount")
     }
 
-//  def wordCount(c: Config)(implicit flink: StreamExecutionEnvironment): Unit =
-//    emma.onLabyrinth {
-//      // read the input files and split them into lowercased words
-//      val docs = DataBag.readText(c.input)
-//      // parse and count the words
-//      val counts = WordCount(docs)
-//      // write the results into a file
-//      counts.writeCSV(c.output, c.csv)
-//    }
+  def wordCount(c: Config)(implicit flink: StreamExecutionEnvironment): Unit =
+    emma.onLabyrinth {
+      // read the input files and split them into lowercased words
+      val docs = DataBag.readText(c.input)
+      // parse and count the words
+      val counts = WordCount(docs)
+      // write the results into a file
+      counts.writeCSV(c.output, c.csv)
+    }
 
   // ---------------------------------------------------------------------------
   // Helper methods
