@@ -20,6 +20,7 @@ import api.DataBag
 import api.backend.LocalOps._
 import api._
 import api.alg.Count
+import labyrinth._
 
 class TestInt(var v: Int) {
   def addd(u: Int, w: Int, x: Int)(m: Int, n: Int)(s: Int, t: Int) : Int =
@@ -384,6 +385,29 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
           val tmp = 3; tmp
         })
         val d = DB.cross3(a, b, c).map((t: (TestInt, Int, Int)) => t._1.addd(1, t._2, 3)(4, t._3)(6, 7))
+      }
+
+      applyXfrm(labyrinthNormalize)(inp) shouldBe alphaEqTo(anfPipeline(exp))
+    }
+  }
+
+  "foo" {
+
+    /*
+    for now
+    .addInput( ..., true, false)
+    .setparallelism(1)
+    partitioner always0 with para = 1
+    bbid = 1
+     */
+
+    "ValDef only" in {
+      val inp = reify {
+        val a = 1
+      }
+
+      val exp = reify {
+        val a = new LabyNode()
       }
 
       applyXfrm(labyrinthNormalize)(inp) shouldBe alphaEqTo(anfPipeline(exp))
