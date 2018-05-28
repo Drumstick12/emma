@@ -391,27 +391,27 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
     }
   }
 
-  "foo" {
-
-    /*
-    for now
-    .addInput( ..., true, false)
-    .setparallelism(1)
-    partitioner always0 with para = 1
-    bbid = 1
-     */
-
-    "ValDef only" in {
-      val inp = reify {
-        val a = 1
-      }
-
-      val exp = reify {
-        val a = new LabyNode()
-      }
-
-      applyXfrm(labyrinthNormalize)(inp) shouldBe alphaEqTo(anfPipeline(exp))
-    }
+  "labynization" - {
+//
+//    /*
+//    for now
+//    .addInput( ..., true, false)
+//    .setparallelism(1)
+//    partitioner always0 with para = 1
+//    bbid = 1
+//     */
+//
+//    "ValDef only" in {
+//      val inp = reify {
+//        val a = 1
+//      }
+//
+//      val exp = reify {
+//        val a = new LabyNode()
+//      }
+//
+//      applyXfrm(labyrinthNormalize)(inp) shouldBe alphaEqTo(anfPipeline(exp))
+//    }
   }
 }
 
