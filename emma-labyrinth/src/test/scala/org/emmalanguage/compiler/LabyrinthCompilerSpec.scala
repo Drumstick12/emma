@@ -21,6 +21,12 @@ import api.backend.LocalOps._
 import api._
 import api.alg.Count
 import labyrinth._
+import labyrinth.operators._
+import labyrinth.partitioners._
+
+import org.apache.flink.api.common.typeinfo.TypeHint
+import org.apache.flink.api.common.typeinfo.TypeInformation
+import org.apache.flink.api.common.ExecutionConfig
 
 class TestInt(var v: Int) {
   def addd(u: Int, w: Int, x: Int)(m: Int, n: Int)(s: Int, t: Int) : Int =
@@ -63,12 +69,22 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
       Core.unnest
     ).compose(_.tree)
 
+  val noopPipeline:u.Expr[Any] => u.Tree = pipeline(typeCheck = true)().compose(_.tree)
+
   def applyXfrm(xfrm: Xfrm): u.Expr[Any] => u.Tree = {
 
     pipeline(typeCheck = true)(
       Core.lnf,
-      xfrm.timed
-      ,
+      xfrm.timed,
+      Core.unnest
+    ).compose(_.tree)
+  }
+
+  def applyLabynization(): u.Expr[Any] => u.Tree = {
+    pipeline(typeCheck = true)(
+      Core.lnf,
+      labyrinthNormalize,
+      labyrinthLabynize.timed,
       Core.unnest
     ).compose(_.tree)
   }
@@ -392,26 +408,34 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
   }
 
   "labynization" - {
-//
-//    /*
-//    for now
-//    .addInput( ..., true, false)
-//    .setparallelism(1)
-//    partitioner always0 with para = 1
-//    bbid = 1
-//     */
-//
-//    "ValDef only" in {
-//      val inp = reify {
-//        val a = 1
-//      }
-//
-//      val exp = reify {
-//        val a = new LabyNode()
-//      }
-//
-//      applyXfrm(labyrinthNormalize)(inp) shouldBe alphaEqTo(anfPipeline(exp))
-//    }
+
+    /*
+    for now
+    .addInput( ..., true, false)
+    .setparallelism(1)
+    partitioner always0 with para = 1
+    bbid = 1
+     */
+
+    "ValDef only" in {
+      val inp = reify {
+        val a = 1
+      }
+
+      val exp = reify {
+        val a = new LabyNode[Unit, Int](
+          "fromNothig",
+          ScalaOps.fromNothing[Int]( _ => { val tmp = 1; tmp } ),
+          1,
+          new Always0[Unit](1),
+          TypeInformation.of(new TypeHint[Unit]() {}).createSerializer(new ExecutionConfig),
+          TypeInformation.of(new TypeHint[ElementOrEvent[scala.Int]]() {})
+        )
+          .setParallelism(1)
+      }
+
+      applyLabynization()(inp) shouldBe alphaEqTo(noopPipeline(exp))
+    }
   }
 }
 
