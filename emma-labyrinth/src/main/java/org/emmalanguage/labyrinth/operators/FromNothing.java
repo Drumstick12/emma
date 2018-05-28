@@ -14,26 +14,28 @@
  * limitations under the License.
  */
 
-package org.emmalanguage
-package compiler
+package org.emmalanguage.labyrinth.operators;
 
-trait LabyrinthLabynization extends LabyrinthCompilerBase {
+import org.emmalanguage.labyrinth.util.SerializedBuffer;
+import org.apache.flink.api.java.tuple.Tuple2;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import scala.Unit;
 
-  import API._
+import java.util.ArrayList;
+import java.util.HashMap;
 
-  val labyrinthLabynize = TreeTransform("labyrinthLabynize", (tree: u.Tree) => {
 
-    println("___")
-    println("==0tree==")
-    println(tree)
-    println("==0tree==")
+public class FromNothing<K> extends SingletonBagOperator<Unit,K> {
 
-    // first traversal does the labyrinth normalization. second for block type correction.
-    api.TopDown.unsafe
-      .withOwner
-      .transformWith {
-        case t: u.Tree => t
-      }._tree(tree)
+    @Override
+    public void openOutBag() {
+        super.openOutBag();
+    }
 
-  })
+    @Override
+    public void closeInBag(int inputId) {
+        super.closeInBag(inputId);
+        out.closeBag();
+    }
 }

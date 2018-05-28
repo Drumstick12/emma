@@ -42,6 +42,16 @@ object ScalaOps {
     }
   }
 
+  def fromNothing[OUT](f: Unit => OUT ): FromNothing[OUT] = {
+
+    new FromNothing[OUT]() {
+      override def pushInElement(e: Unit, logicalInputId: Int) : Unit = {
+        super.pushInElement(e, logicalInputId)
+        out.collectElement(f())
+      }
+    }
+  }
+
   def foldGroup[K,IN,OUT](keyExtractor: IN => K, i: IN => OUT, f: (OUT, OUT) => OUT): FoldGroup[K,IN,OUT] = {
 
     new FoldGroup[K, IN, OUT]() {
