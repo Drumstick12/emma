@@ -21,6 +21,7 @@ import shapeless.::
 trait LabyrinthNormalization extends LabyrinthCompilerBase {
 
   import API._
+  import UniverseImplicits._
 
   // non-bag variables to DataBag
   val labyrinthNormalize = TreeTransform("labyrinthNormalize", (tree: u.Tree) => {

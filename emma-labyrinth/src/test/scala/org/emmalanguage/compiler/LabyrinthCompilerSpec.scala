@@ -423,13 +423,15 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
       }
 
       val exp = reify {
-        val a = new LabyNode[Unit, Int](
-          "fromNothig",
-          ScalaOps.fromNothing[Int]( _ => { val tmp = 1; tmp } ),
+        val a = new LabyNode[labyrinth.util.Nothing, Int](
+          "fromNothing",
+          ScalaOps.fromNothing[Int]( () => { val tmp = 1; tmp } ),
           1,
-          new Always0[Unit](1),
-          TypeInformation.of(new TypeHint[Unit]() {}).createSerializer(new ExecutionConfig),
-          TypeInformation.of(new TypeHint[ElementOrEvent[scala.Int]]() {})
+          new Always0[labyrinth.util.Nothing](1),
+//          TypeInformation.of(new TypeHint[labyrinth.util.Nothing]() {}).createSerializer(new ExecutionConfig),
+          org.apache.flink.api.scala.createTypeInformation[labyrinth.util.Nothing].createSerializer(new ExecutionConfig),
+//          TypeInformation.of(new TypeHint[ElementOrEvent[scala.Int]]() {})
+          org.apache.flink.api.scala.createTypeInformation[ElementOrEvent[Int]]
         )
           .setParallelism(1)
       }
