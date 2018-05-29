@@ -42,12 +42,13 @@ object ScalaOps {
     }
   }
 
-  def fromNothing[OUT](f: Unit => OUT ): FromNothing[OUT] = {
+  def fromNothing[OUT](f: () => OUT ): FromNothing[OUT] = {
 
     new FromNothing[OUT]() {
-      override def pushInElement(e: Unit, logicalInputId: Int) : Unit = {
-        super.pushInElement(e, logicalInputId)
+      override def openOutBag() : Unit = {
+        super.openOutBag()
         out.collectElement(f())
+        out.closeBag()
       }
     }
   }

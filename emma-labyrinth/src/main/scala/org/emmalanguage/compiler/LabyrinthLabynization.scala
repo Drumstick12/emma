@@ -20,6 +20,7 @@ package compiler
 trait LabyrinthLabynization extends LabyrinthCompilerBase {
 
   import API._
+  import UniverseImplicits._
 
   val labyrinthLabynize = TreeTransform("labyrinthLabynize", (tree: u.Tree) => {
 

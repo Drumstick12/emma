@@ -16,6 +16,7 @@
 
 package org.emmalanguage.labyrinth.operators;
 
+import org.emmalanguage.labyrinth.util.Nothing;
 import org.emmalanguage.labyrinth.util.SerializedBuffer;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.slf4j.Logger;
@@ -26,16 +27,12 @@ import java.util.ArrayList;
 import java.util.HashMap;
 
 
-public class FromNothing<K> extends SingletonBagOperator<Unit,K> {
+public class FromNothing<K> extends SingletonBagOperator<Nothing,K> {
 
     @Override
     public void openOutBag() {
         super.openOutBag();
     }
 
-    @Override
-    public void closeInBag(int inputId) {
-        super.closeInBag(inputId);
-        out.closeBag();
-    }
+
 }
