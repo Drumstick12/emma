@@ -37,6 +37,7 @@ trait LabyrinthCompiler
     Core.unnest,
     // labyrinth transformations
     labyrinthNormalize,
+    Core.unnest,
     labyrinthLabynize
 
     // lowering

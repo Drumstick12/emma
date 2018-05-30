@@ -26,6 +26,7 @@ import labyrinth.partitioners._
 
 import org.apache.flink.api.common.typeinfo.TypeHint
 import org.apache.flink.api.common.typeinfo.TypeInformation
+import org.apache.flink.api.scala._
 import org.apache.flink.api.common.ExecutionConfig
 
 class TestInt(var v: Int) {
@@ -83,7 +84,8 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
   def applyLabynization(): u.Expr[Any] => u.Tree = {
     pipeline(typeCheck = true)(
       Core.lnf,
-      labyrinthNormalize,
+      labyrinthNormalize.timed,
+      Core.unnest,
       labyrinthLabynize.timed,
       Core.unnest
     ).compose(_.tree)
@@ -428,15 +430,14 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
           ScalaOps.fromNothing[Int]( () => { val tmp = 1; tmp } ),
           1,
           new Always0[labyrinth.util.Nothing](1),
-//          TypeInformation.of(new TypeHint[labyrinth.util.Nothing]() {}).createSerializer(new ExecutionConfig),
-          org.apache.flink.api.scala.createTypeInformation[labyrinth.util.Nothing].createSerializer(new ExecutionConfig),
-//          TypeInformation.of(new TypeHint[ElementOrEvent[scala.Int]]() {})
-          org.apache.flink.api.scala.createTypeInformation[ElementOrEvent[Int]]
+          createTypeInformation[labyrinth.util.Nothing]
+            .createSerializer(new ExecutionConfig),
+          new ElementOrEventTypeInfo[Int](createTypeInformation[Int])
         )
           .setParallelism(1)
       }
 
-      applyLabynization()(inp) shouldBe alphaEqTo(noopPipeline(exp))
+      applyLabynization()(inp) shouldBe alphaEqTo(anfPipeline(exp))
     }
   }
 }
