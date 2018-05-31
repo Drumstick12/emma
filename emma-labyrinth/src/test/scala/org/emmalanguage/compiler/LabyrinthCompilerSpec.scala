@@ -24,8 +24,6 @@ import labyrinth._
 import labyrinth.operators._
 import labyrinth.partitioners._
 
-import org.apache.flink.api.common.typeinfo.TypeHint
-import org.apache.flink.api.common.typeinfo.TypeInformation
 import org.apache.flink.api.scala._
 import org.apache.flink.api.common.ExecutionConfig
 
@@ -66,11 +64,12 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
 
   val anfPipeline: u.Expr[Any] => u.Tree =
     pipeline(typeCheck = true)(
+      addContext,
       Core.anf,
       Core.unnest
     ).compose(_.tree)
 
-  val noopPipeline:u.Expr[Any] => u.Tree = pipeline(typeCheck = true)().compose(_.tree)
+  val noopPipeline: u.Expr[Any] => u.Tree = pipeline(typeCheck = true)().compose(_.tree)
 
   def applyXfrm(xfrm: Xfrm): u.Expr[Any] => u.Tree = {
 
@@ -87,7 +86,8 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
       labyrinthNormalize.timed,
       Core.unnest,
       labyrinthLabynize.timed,
-      Core.unnest
+      Core.unnest,
+      addContext
     ).compose(_.tree)
   }
 
@@ -409,6 +409,8 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
     }
   }
 
+  implicit val emptyExecutionConfig = new ExecutionConfig
+
   "labynization" - {
 
     /*
@@ -431,14 +433,27 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
           1,
           new Always0[labyrinth.util.Nothing](1),
           createTypeInformation[labyrinth.util.Nothing]
-            .createSerializer(new ExecutionConfig),
+            //.createSerializer(new ExecutionConfig),
+            .createSerializer(implicitly[ExecutionConfig]),
           new ElementOrEventTypeInfo[Int](createTypeInformation[Int])
+//          MemoCopy.typeInfoForType(labyrinth.util.Nothing).createSerializer(new ExecutionConfig),
+//          new ElementOrEventTypeInfo[Int](MemoCopy.typeInfoForType(Int))
         )
           .setParallelism(1)
       }
 
-      applyLabynization()(inp) shouldBe alphaEqTo(anfPipeline(exp))
+      expandAndAnf(applyLabynization()(inp)) shouldBe
+        alphaEqTo(anfPipeline(exp))
     }
+  }
+
+  def expandAndAnf(t: u.Tree) : u.Tree = {
+    val aaa = compiler.unTypeCheck(t)
+    println("aaa: " + aaa)
+    pipeline(typeCheck = true)(
+      Core.anf,
+      Core.unnest
+    )(aaa)
   }
 }
 

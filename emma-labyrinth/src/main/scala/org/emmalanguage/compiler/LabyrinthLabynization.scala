@@ -73,16 +73,25 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
               )
               val typeInfoINRefDef = valRefAndDef(owner, "typeInfo", typeInfoINVDrhs)
 
+              // implicitly ExecutionConfig
+              val implExecVDrhs = core.DefCall(
+                Some(core.Ref(api.Sym.predef)),
+                api.Sym.implicitly,
+                Seq(getTpe[org.apache.flink.api.common.ExecutionConfig]),
+                Seq()
+              )
+              val implExecRefDef = valRefAndDef(owner, "implExecutionConfig", implExecVDrhs)
+
               // executionConfig
-              val confVDrhs = core.Inst(getTpe[org.apache.flink.api.common.ExecutionConfig])
-              val confRefDef = valRefAndDef(owner, "ExecConf", confVDrhs)
+              // val confVDrhs = core.Inst(getTpe[org.apache.flink.api.common.ExecutionConfig])
+              // val confRefDef = valRefAndDef(owner, "ExecConf", confVDrhs)
 
               // createSerializer
               val serlzrVDrhs = core.DefCall(
                 Some(typeInfoINRefDef._1),
                 TypeInformation.createSerializer,
                 Seq(),
-                Seq(Seq(confRefDef._1))
+                Seq(Seq(implExecRefDef._1))
               )
               val serlzrRefDef = valRefAndDef(owner, "Serializer", serlzrVDrhs)
 
@@ -129,12 +138,14 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
 
               // put everything into a block
               val blockVDrhs = core.Let(
-                Seq(bagOpRefDef._2, partRefDef._2, typeInfoINRefDef._2, confRefDef._2, serlzrRefDef._2,
+                Seq(bagOpRefDef._2, partRefDef._2, typeInfoINRefDef._2, implExecRefDef._2, serlzrRefDef._2,
                   typeInfoOUTRefDef._2, eleveRefDef._2, labyNodeRefDef._2, setParRefDef._2),
                 Seq(),
                 setParRefDef._1
               )
               val blockRefDef = valRefAndDef(owner, "LabyEnd", blockVDrhs)
+
+              postPrint(blockRefDef._2)
 
               blockRefDef._2
 
@@ -154,13 +165,9 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
   }
 
   object FlinkScala$ extends ModuleAPI {
-    lazy val sym = api.Sym[FlinkScala$.type].asModule
+    lazy val sym = api.Sym[org.apache.flink.api.scala.`package`.type].asModule
 
-    def createTypeInformationWrapper[T: scala.reflect.ClassTag]: TypeInformation[T] =
-      //org.apache.flink.api.scala.createTypeInformation
-      macro org.apache.flink.api.scala.typeutils.TypeUtils.createTypeInfo[T]
-
-    val createTypeInformation = op("createTypeInformationWrapper")
+    val createTypeInformation = op("createTypeInformation")
 
     override def ops = Set()
   }
