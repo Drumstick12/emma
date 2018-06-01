@@ -29,7 +29,7 @@ trait LabyrinthNormalization extends LabyrinthCompilerBase {
     val defs = scala.collection.mutable.Map[u.TermSymbol, u.ValDef]()
 
     println("___")
-    println("==0tree==")
+    println("==0tree Normalization==")
     println(tree)
     println("==0tree==")
 
