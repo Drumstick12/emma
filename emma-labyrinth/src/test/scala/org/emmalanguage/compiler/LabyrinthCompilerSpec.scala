@@ -24,7 +24,7 @@ import labyrinth._
 import labyrinth.operators._
 import labyrinth.partitioners._
 
-import org.apache.flink.api.scala._
+//import org.apache.flink.api.scala._
 import org.apache.flink.api.common.ExecutionConfig
 
 class TestInt(var v: Int) {
@@ -64,7 +64,6 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
 
   val anfPipeline: u.Expr[Any] => u.Tree =
     pipeline(typeCheck = true)(
-      addContext,
       Core.anf,
       Core.unnest
     ).compose(_.tree)
@@ -86,8 +85,7 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
       labyrinthNormalize.timed,
       Core.unnest,
       labyrinthLabynize.timed,
-      Core.unnest,
-      addContext
+      Core.unnest
     ).compose(_.tree)
   }
 
@@ -421,7 +419,19 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
     bbid = 1
      */
 
-    "ValDef only" in {
+    "lambda only" in {
+      val inp = reify {
+        val a = () => 1
+      }
+
+      val exp = reify {
+        val a = () => 1
+      }
+
+      expandAndAnf(applyLabynization()(inp)) shouldBe alphaEqTo(anfPipeline(exp))
+    }
+
+    "singSrc rhs" in {
       val inp = reify {
         val a = 1
       }
@@ -432,28 +442,56 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
           ScalaOps.fromNothing[Int]( () => { val tmp = 1; tmp } ),
           1,
           new Always0[labyrinth.util.Nothing](1),
-          createTypeInformation[labyrinth.util.Nothing]
-            //.createSerializer(new ExecutionConfig),
-            .createSerializer(implicitly[ExecutionConfig]),
-          new ElementOrEventTypeInfo[Int](createTypeInformation[Int])
-//          MemoCopy.typeInfoForType(labyrinth.util.Nothing).createSerializer(new ExecutionConfig),
-//          new ElementOrEventTypeInfo[Int](MemoCopy.typeInfoForType(Int))
+          null,
+          new ElementOrEventTypeInfo[Int](Memo.typeInfoForType[Int])
         )
           .setParallelism(1)
       }
 
-      expandAndAnf(applyLabynization()(inp)) shouldBe
-        alphaEqTo(anfPipeline(exp))
+      applyLabynization()(inp) shouldBe alphaEqTo(anfPipeline(exp))
+    }
+
+    "databag rhs" in {
+      val inp = reify {
+        val s = Seq(1)
+        val db = DataBag(s)
+      }
+
+      val exp = reify {
+        val n1 = new LabyNode[labyrinth.util.Nothing, Seq[Int]](
+          "fromNothing",
+          ScalaOps.fromNothing[Seq[Int]](() => {
+            val tmp = Seq(1); tmp
+          }),
+          1,
+          new Always0[labyrinth.util.Nothing](1),
+          null,
+          new ElementOrEventTypeInfo[Seq[Int]](Memo.typeInfoForType[Seq[Int]])
+        )
+          .setParallelism(1)
+
+        val n2 = new LabyNode[Seq[Int], Int](
+          "fromSingSrcApply",
+          ScalaOps.fromSingSrcApply[Int](),
+          1,
+          new Always0[Seq[Int]](1),
+          null,
+          new ElementOrEventTypeInfo[Int](Memo.typeInfoForType[Int])
+        )
+          .addInput(n1, true, false)
+          .setParallelism(1)
+      }
+
+      applyLabynization()(inp) shouldBe alphaEqTo(anfPipeline(exp))
     }
   }
 
   def expandAndAnf(t: u.Tree) : u.Tree = {
-    val aaa = compiler.unTypeCheck(t)
-    println("aaa: " + aaa)
+    val tt = compiler.unTypeCheck(t)
     pipeline(typeCheck = true)(
       Core.anf,
       Core.unnest
-    )(aaa)
+    )(tt)
   }
 }
 

@@ -33,14 +33,16 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
   import UniverseImplicits._
 
   val labyrinthLabynize = TreeTransform("labyrinthLabynize", (tree: u.Tree) => {
+    val replacements = scala.collection.mutable.Map[u.TermSymbol, u.TermSymbol]()
+    val defs = scala.collection.mutable.Map[u.TermSymbol, u.ValDef]()
 
     println("___")
-    println("==0tree==")
+    println("==0tree Labynization==")
     println(tree)
     println("==0tree==")
 
     // first traversal does the labyrinth normalization. second for block type correction.
-    api.TopDown.unsafe
+    val transOut = api.TopDown.unsafe
       .withOwner
       .transformWith {
         case Attr.inh(vd @ core.ValDef(lhs, rhs), owner :: _)
@@ -64,86 +66,98 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
               )
               val partRefDef = valRefAndDef(owner, "partitioner", partVDrhs)
 
-              // typeinfo IN
-              val typeInfoINVDrhs = core.DefCall(
-                Option(FlinkScala$.ref),
-                FlinkScala$.createTypeInformation,
-                Seq(getTpe[labyrinth.util.Nothing]),
-                Seq()
-              )
-              val typeInfoINRefDef = valRefAndDef(owner, "typeInfo", typeInfoINVDrhs)
-
-              // implicitly ExecutionConfig
-              val implExecVDrhs = core.DefCall(
-                Some(core.Ref(api.Sym.predef)),
-                api.Sym.implicitly,
-                Seq(getTpe[org.apache.flink.api.common.ExecutionConfig]),
-                Seq()
-              )
-              val implExecRefDef = valRefAndDef(owner, "implExecutionConfig", implExecVDrhs)
-
-              // executionConfig
-              // val confVDrhs = core.Inst(getTpe[org.apache.flink.api.common.ExecutionConfig])
-              // val confRefDef = valRefAndDef(owner, "ExecConf", confVDrhs)
-
-              // createSerializer
-              val serlzrVDrhs = core.DefCall(
-                Some(typeInfoINRefDef._1),
-                TypeInformation.createSerializer,
-                Seq(),
-                Seq(Seq(implExecRefDef._1))
-              )
-              val serlzrRefDef = valRefAndDef(owner, "Serializer", serlzrVDrhs)
-
               // typeinfo OUT
-              val typeInfoOUTVDrhs = core.DefCall(
-                Option(FlinkScala$.ref),
-                FlinkScala$.createTypeInformation,
-                Seq(targ),
-                Seq()
-              )
-              val typeInfoOUTRefDef = valRefAndDef(owner, "typeInfo", typeInfoOUTVDrhs)
+              val typeInfoOUTRefDef = getTypeInfoForTypeRefDef(owner, targ)
 
               // ElementOrEventTypeInfo
-              val eleveVDrhs = core.Inst(
-                ElementOrEvent.tpe,
-                Seq(targ),
-                Seq(Seq(typeInfoOUTRefDef._1))
-              )
-              val eleveRefDef = valRefAndDef(owner, "ElementOrEventTypeInfo", eleveVDrhs)
+              val elementOrEventTypeInfoRefDef = getElementOrEventTypeInfoRefDef(owner, targ, typeInfoOUTRefDef._1)
 
               // LabyNode
-              val labyNodeVDrhs = core.Inst(
-                LabyNode.tpe,
-                Seq(getTpe[labyrinth.util.Nothing], targ),
-                Seq(Seq(
-                  core.Lit("fromNothing"), // name
-                  bagOpRefDef._1,
-                  core.Lit(1), // bbId
-                  partRefDef._1,
-                  serlzrRefDef._1,
-                  eleveRefDef._1
-                ))
+              val labyNodeRefDef = getLabyNodeRefDef(
+                owner,
+                (getTpe[labyrinth.util.Nothing], targ),
+                "fromNothing",
+                bagOpRefDef._1,
+                1,
+                partRefDef._1,
+                elementOrEventTypeInfoRefDef._1
               )
-              val labyNodeRefDef = valRefAndDef(owner, "LabyNode", labyNodeVDrhs)
 
               // setParallelism
-              val setParVDrhs = core.DefCall(
-                Some(labyNodeRefDef._1),
-                LabyNode.setParallelism,
-                Seq(),
-                Seq(Seq(core.Lit(1)))
-              )
-              val setParRefDef = valRefAndDef(owner, "setParallelism", setParVDrhs)
+              val SetParallelismRefDef = getSetParallelismRefDef(owner, labyNodeRefDef._1, 1)
 
               // put everything into a block
               val blockVDrhs = core.Let(
-                Seq(bagOpRefDef._2, partRefDef._2, typeInfoINRefDef._2, implExecRefDef._2, serlzrRefDef._2,
-                  typeInfoOUTRefDef._2, eleveRefDef._2, labyNodeRefDef._2, setParRefDef._2),
+                Seq(bagOpRefDef._2, partRefDef._2, typeInfoOUTRefDef._2,
+                  elementOrEventTypeInfoRefDef._2, labyNodeRefDef._2, SetParallelismRefDef._2),
                 Seq(),
-                setParRefDef._1
+                SetParallelismRefDef._1
               )
-              val blockRefDef = valRefAndDef(owner, "LabyEnd", blockVDrhs)
+              val blockSym = newSymbol(owner, "setPrllzm", blockVDrhs)
+              val blockRefDef = valRefAndDef(blockSym, blockVDrhs)
+              replacements += (lhs -> blockSym)
+
+              postPrint(blockRefDef._2)
+
+              blockRefDef._2
+
+            // fromSingSrc to LabyNode
+            case core.DefCall(Some(DB$.ref), DB$.fromSingSrcApply, Seq(targ), Seq(Seq(core.ValRef(singSrcDBsym)))) =>
+
+              val singSrcDBReplSym = replacements(singSrcDBsym)
+              val singSrcDBReplRef = core.ValRef(singSrcDBReplSym)
+
+              // bagoperator
+              val bagOpVDrhs = core.DefCall(
+                Some(ScalaOps$.ref),
+                ScalaOps$.fromSingSrcApply,
+                Seq(targ),
+                Seq(Seq())
+              )
+              val bagOpRefDef = valRefAndDef(owner, "fromSingSrcApply", bagOpVDrhs)
+
+              val inTpe = singSrcDBsym.info.typeArgs.head
+
+              // partitioner
+              val targetPara = 1
+              val partVDrhs = core.Inst(
+                getTpe[Always0[Any]],
+                Seq(inTpe),
+                Seq(Seq(core.Lit(targetPara)))
+              )
+              val partRefDef = valRefAndDef(owner, "partitioner", partVDrhs)
+
+              // typeinfo OUT
+              val typeInfoOUTRefDef = getTypeInfoForTypeRefDef(owner, targ)
+
+              // ElementOrEventTypeInfo
+              val elementOrEventTypeInfoRefDef = getElementOrEventTypeInfoRefDef(owner, targ, typeInfoOUTRefDef._1)
+
+              // LabyNode
+              val labyNodeRefDef = getLabyNodeRefDef(
+                owner,
+                (inTpe, targ),
+                "fromSingSrcApply",
+                bagOpRefDef._1,
+                1,
+                partRefDef._1,
+                elementOrEventTypeInfoRefDef._1
+              )
+
+              // addInput
+              val addInputRefDef = getAddInputRefDef(owner, labyNodeRefDef._1, singSrcDBReplRef)
+
+              // setParallelism
+              val SetParallelismRefDef = getSetParallelismRefDef(owner, addInputRefDef._1, 1)
+
+              // put everything into a block
+              val blockVDrhs = core.Let(
+                Seq(bagOpRefDef._2, partRefDef._2, typeInfoOUTRefDef._2, elementOrEventTypeInfoRefDef._2,
+                  labyNodeRefDef._2, addInputRefDef._2, SetParallelismRefDef._2),
+                Seq(),
+                SetParallelismRefDef._1
+              )
+              val blockRefDef = valRefAndDef(owner, "setPrllzm", blockVDrhs)
 
               postPrint(blockRefDef._2)
 
@@ -154,22 +168,102 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
         }
       }._tree(tree)
 
+    postPrint(transOut)
+    transOut
   })
+
+  def getTypeInfoForTypeRefDef(owner: u.Symbol, tpe: u.Type): (u.Ident, u.ValDef) = {
+    val typeInfoOUTVDrhs = core.DefCall(
+      Option(Memo$.ref),
+      Memo$.typeInfoForType,
+      Seq(tpe),
+      Seq()
+    )
+    valRefAndDef(owner, "typeInfo", typeInfoOUTVDrhs)}
+
+  def getElementOrEventTypeInfoRefDef(owner: u.Symbol, tpe: u.Type, typeInfo: u.Ident): (u.Ident, u.ValDef) = {
+    val eleveVDrhs = core.Inst(
+      ElementOrEvent.tpe,
+      Seq(tpe),
+      Seq(Seq(typeInfo))
+    )
+    valRefAndDef(owner, "ElementOrEventTypeInfo", eleveVDrhs)
+  }
+
+  def getLabyNodeRefDef(
+    owner: u.Symbol,
+    tpeInOut: (u.Type, u.Type),
+    name: String,
+    bagOpRef: u.Ident,
+    bbId: Int,
+    partRef: u.Ident,
+    elementOrEventTypeInfoRef: u.Ident
+  ): (u.Ident, u.ValDef) = {
+    val labyNodeVDrhs = core.Inst(
+      LabyNode.tpe,
+      Seq(tpeInOut._1, tpeInOut._2),
+      Seq(Seq(
+        core.Lit(name),           // name
+        bagOpRef,                 // bagoperator
+        core.Lit(bbId),           // bbId
+        partRef,                  // partitioner
+        core.Lit(null),           // inputSerializer
+        elementOrEventTypeInfoRef // elemTypeInfo
+      ))
+    )
+    valRefAndDef(owner, "LabyNode", labyNodeVDrhs)
+  }
+
+  def getAddInputRefDef(
+    owner: u.Symbol,
+    tgtRef: u.Ident,
+    singSrcDBReplRef: u.Ident,
+    insideBlock: Boolean = true,
+    condOut: Boolean = false
+  ) : (u.Ident, u.ValDef) = {
+    val addInputVDrhs = core.DefCall(
+      Some(tgtRef),
+      LabyNode.addInput,
+      Seq(),
+      Seq(Seq(singSrcDBReplRef, core.Lit(insideBlock), core.Lit(condOut)))
+    )
+    valRefAndDef(owner, "addInput", addInputVDrhs)
+  }
+
+  def getSetParallelismRefDef(owner: u.Symbol, tgtRef: u.Ident, parallelism: Int): (u.Ident, u.ValDef) = {
+    val setParVDrhs = core.DefCall(
+      Some(tgtRef),
+      LabyNode.setParallelism,
+      Seq(),
+      Seq(Seq(core.Lit(parallelism)))
+    )
+    valRefAndDef(owner, "setParallelism", setParVDrhs)
+  }
 
   object ScalaOps$ extends ModuleAPI {
     lazy val sym = api.Sym[ScalaOps.type].asModule
 
     val fromNothing = op("fromNothing")
+    val fromSingSrcApply = op("fromSingSrcApply")
 
     override def ops = Set()
   }
 
-  object FlinkScala$ extends ModuleAPI {
-    lazy val sym = api.Sym[org.apache.flink.api.scala.`package`.type].asModule
+//  object FlinkScala$ extends ModuleAPI {
+//    lazy val sym = api.Sym[org.apache.flink.api.scala.`package`.type].asModule
+//
+//    val createTypeInformation = op("createTypeInformation")
+//
+//    override def ops = Set()
+//  }
 
-    val createTypeInformation = op("createTypeInformation")
+  object Memo$ extends ModuleAPI {
+    lazy val sym = api.Sym[Memo.type].asModule
+
+    val typeInfoForType = op("typeInfoForType")
 
     override def ops = Set()
+
   }
 
   object TypeInformation extends ClassAPI {
@@ -189,9 +283,78 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
     lazy val sym = api.Sym[labyrinth.LabyNode[Any,Any]].asClass
 
     val setParallelism = op("setParallelism")
+    val addInput = op("addInput", List(3))
 
     override def ops = Set()
   }
 
   def getTpe[T: u.WeakTypeTag] : u.Type = api.Sym[T].asClass.toTypeConstructor
+
+}
+
+
+// ======================================================================================= \\
+// ======================================================================================= \\
+// all of this copied and adjusted from FlinkDataSet.scala to avoid anonymous class errors \\
+// ======================================================================================= \\
+// ======================================================================================= \\
+
+object Memo {
+  private val memo = collection.mutable.Map.empty[Any, Any]
+
+  { // initialize memo table with standard types
+    import org.apache.flink.api.scala._
+    // standard Scala types
+    memoizeTypeInfo(implicitly[org.emmalanguage.api.Meta[Unit]], createTypeInformation)
+    memoizeTypeInfo(implicitly[org.emmalanguage.api.Meta[Boolean]], createTypeInformation)
+    memoizeTypeInfo(implicitly[org.emmalanguage.api.Meta[Char]], createTypeInformation)
+    memoizeTypeInfo(implicitly[org.emmalanguage.api.Meta[Byte]], createTypeInformation)
+    memoizeTypeInfo(implicitly[org.emmalanguage.api.Meta[Short]], createTypeInformation)
+    memoizeTypeInfo(implicitly[org.emmalanguage.api.Meta[Int]], createTypeInformation)
+    memoizeTypeInfo(implicitly[org.emmalanguage.api.Meta[Long]], createTypeInformation)
+    memoizeTypeInfo(implicitly[org.emmalanguage.api.Meta[Float]], createTypeInformation)
+    memoizeTypeInfo(implicitly[org.emmalanguage.api.Meta[Double]], createTypeInformation)
+    memoizeTypeInfo(implicitly[org.emmalanguage.api.Meta[String]], createTypeInformation)
+    memoizeTypeInfo(implicitly[org.emmalanguage.api.Meta[BigInt]], createTypeInformation)
+    memoizeTypeInfo(implicitly[org.emmalanguage.api.Meta[BigDecimal]], createTypeInformation)
+    // standard Java types
+    memoizeTypeInfo(implicitly[org.emmalanguage.api.Meta[java.lang.Void]], createTypeInformation)
+    memoizeTypeInfo(implicitly[org.emmalanguage.api.Meta[java.lang.Boolean]], createTypeInformation)
+    memoizeTypeInfo(implicitly[org.emmalanguage.api.Meta[java.lang.Character]], createTypeInformation)
+    memoizeTypeInfo(implicitly[org.emmalanguage.api.Meta[java.lang.Byte]], createTypeInformation)
+    memoizeTypeInfo(implicitly[org.emmalanguage.api.Meta[java.lang.Short]], createTypeInformation)
+    memoizeTypeInfo(implicitly[org.emmalanguage.api.Meta[java.lang.Integer]], createTypeInformation)
+    memoizeTypeInfo(implicitly[org.emmalanguage.api.Meta[java.lang.Long]], createTypeInformation)
+    memoizeTypeInfo(implicitly[org.emmalanguage.api.Meta[java.lang.Float]], createTypeInformation)
+    memoizeTypeInfo(implicitly[org.emmalanguage.api.Meta[java.lang.Double]], createTypeInformation)
+    memoizeTypeInfo(implicitly[org.emmalanguage.api.Meta[java.math.BigInteger]], createTypeInformation)
+    memoizeTypeInfo(implicitly[org.emmalanguage.api.Meta[java.math.BigDecimal]], createTypeInformation)
+    // Labyrinth Types
+    memoizeTypeInfo(implicitly[org.emmalanguage.api.Meta[labyrinth.util.Nothing]], createTypeInformation)
+    memoizeTypeInfo(implicitly[org.emmalanguage.api.Meta[Seq[Int]]], createTypeInformation)
+  }
+
+  def memoizeTypeInfo[T](implicit meta: org.emmalanguage.api.Meta[T], info: TypeInformation[T])
+  : TypeInformation[T] = {
+    val tpe = fix(meta.tpe).toString
+    val res = memo.getOrElseUpdate(tpe, info)
+    res.asInstanceOf[TypeInformation[T]]
+  }
+
+  implicit def typeInfoForType[T](implicit meta: org.emmalanguage.api.Meta[T]): TypeInformation[T] = {
+    val tpe = fix(meta.tpe).toString
+    if (memo.contains(tpe)) memo(tpe).asInstanceOf[TypeInformation[T]]
+    else throw new RuntimeException(
+      s"""
+        |Cannot find TypeInformation for type $tpe.
+        |Try calling `FlinkDataSet.memoizeTypeInfo[$tpe]` explicitly before the `emma.onFlink` quote.
+      """.stripMargin.trim
+    )
+  }
+
+  private def fix(tpe: scala.reflect.runtime.universe.Type): scala.reflect.runtime.universe.Type =
+    tpe.dealias.map(t => {
+      if (t =:= scala.reflect.runtime.universe.typeOf[java.lang.String]) scala.reflect.runtime.universe.typeOf[String]
+      else t
+    })
 }

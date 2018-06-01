@@ -42,13 +42,23 @@ object ScalaOps {
     }
   }
 
-  def fromNothing[OUT](f: () => OUT ): FromNothing[OUT] = {
+  def fromNothing[OUT](f: () => OUT ): BagOperator[org.emmalanguage.labyrinth.util.Nothing,OUT] = {
 
-    new FromNothing[OUT]() {
+    new BagOperator[org.emmalanguage.labyrinth.util.Nothing,OUT]() {
       override def openOutBag() : Unit = {
         super.openOutBag()
         out.collectElement(f())
         out.closeBag()
+      }
+    }
+  }
+
+  def fromSingSrcApply[IN](): SingletonBagOperator[Seq[IN], IN] = {
+
+    new SingletonBagOperator[Seq[IN], IN] {
+      override def pushInElement(e: Seq[IN], logicalInputId: Int): Unit = {
+        super.pushInElement(e, logicalInputId)
+        e.foreach(x => out.collectElement(x))
       }
     }
   }
@@ -64,7 +74,6 @@ object ScalaOps {
         hm = new util.HashMap[K, OUT]
       }
 
-      // TODO check crash in clickcountdiffsscala
       override def pushInElement(e: IN, logicalInputId: Int): Unit = {
         super.pushInElement(e, logicalInputId)
         val key = keyExtr(e)
