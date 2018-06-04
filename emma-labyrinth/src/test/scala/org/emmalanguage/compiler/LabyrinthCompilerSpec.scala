@@ -26,6 +26,7 @@ import labyrinth.partitioners._
 
 //import org.apache.flink.api.scala._
 import org.apache.flink.api.common.ExecutionConfig
+import org.apache.flink.api.java.tuple.Tuple2
 
 class TestInt(var v: Int) {
   def addd(u: Int, w: Int, x: Int)(m: Int, n: Int)(s: Int, t: Int) : Int =
@@ -428,7 +429,6 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
         val a = () => 1
       }
 
-      // expandAndAnf(applyLabynization()(inp)) shouldBe alphaEqTo(anfPipeline(exp))
       applyLabynization()(inp) shouldBe alphaEqTo(anfPipeline(exp))
     }
 
@@ -487,7 +487,7 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
     }
   }
 
-  "map"in {
+  "map" in {
     val inp = reify {
       val s = Seq(1,2,3)
       val db = DataBag(s)
@@ -533,7 +533,7 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
     applyLabynization()(inp) shouldBe alphaEqTo(anfPipeline(exp))
   }
 
-  "flatmap"in {
+  "flatmap" in {
     val inp = reify {
       val s = Seq(1,2,3)
       val db = DataBag(s)
@@ -574,6 +574,95 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
       )
         .addInput(n2, true, false)
         .setParallelism(1)
+    }
+
+    "cross" in {
+      val inp = reify {
+        val db1 = DataBag(Seq(1,2,3))
+        val db2 = DataBag(Seq("1","2","3"))
+        val dbc = cross(db1, db2)
+      }
+
+      val exp = reify {
+
+        val n1_1 = new LabyNode[labyrinth.util.Nothing, Seq[Int]](
+          "fromNothing",
+          ScalaOps.fromNothing[Seq[Int]](() => {
+            val tmp = Seq(1,2,3); tmp
+          }),
+          1,
+          new Always0[labyrinth.util.Nothing](1),
+          null,
+          new ElementOrEventTypeInfo[Seq[Int]](Memo.typeInfoForType[Seq[Int]])
+        )
+          .setParallelism(1)
+
+        val n1_2 = new LabyNode[Seq[Int], Int](
+          "fromSingSrcApply",
+          ScalaOps.fromSingSrcApply[Int](),
+          1,
+          new Always0[Seq[Int]](1),
+          null,
+          new ElementOrEventTypeInfo[Int](Memo.typeInfoForType[Int])
+        )
+          .addInput(n1_1, true, false)
+          .setParallelism(1)
+
+        val n1_3 = new LabyNode[Int, Either[Int,String]](
+          "mapEitherize",
+          ScalaOps.map(i => Left(i)),
+          1,
+          new Always0[Int](1),
+          null,
+          new ElementOrEventTypeInfo[Either[Int,String]](Memo.typeInfoForType[Either[Int,String]])
+        )
+
+
+        val n2_1 = new LabyNode[labyrinth.util.Nothing, Seq[Int]](
+          "fromNothing",
+          ScalaOps.fromNothing[Seq[Int]](() => {
+            val tmp = Seq("1","2","3"); tmp
+          }),
+          1,
+          new Always0[labyrinth.util.Nothing](1),
+          null,
+          new ElementOrEventTypeInfo[Seq[Int]](Memo.typeInfoForType[Seq[Int]])
+        )
+          .setParallelism(1)
+
+        val n2_2 = new LabyNode[Seq[Int], Int](
+          "fromSingSrcApply",
+          ScalaOps.fromSingSrcApply[Int](),
+          1,
+          new Always0[Seq[Int]](1),
+          null,
+          new ElementOrEventTypeInfo[Int](Memo.typeInfoForType[Int])
+        )
+          .addInput(n2_1, true, false)
+          .setParallelism(1)
+
+        val n2_3 = new LabyNode[Int, Either[Int,String]](
+          "mapEitherize",
+          ScalaOps.map(i => Left(i)),
+          1,
+          new Always0[Int](1),
+          null,
+          new ElementOrEventTypeInfo[Either[Int,String]](Memo.typeInfoForType[Either[Int,String]])
+        )
+
+        val n_cross = new LabyNode[Either[Int, String], Tuple2[Int, String]](
+          "cross",
+          ScalaOps.cross[Int, String],
+          1,
+          new Always0[Either[Int,String]](1),
+          null,
+          new ElementOrEventTypeInfo[Tuple2[Int, String]](Memo.typeInfoForType[Tuple2[Int, String]])
+        )
+          .addInput(n1_3, true, false)
+          .addInput(n2_3, true, false)
+          .setParallelism(1)
+
+      }
     }
 
     applyLabynization()(inp) shouldBe alphaEqTo(anfPipeline(exp))

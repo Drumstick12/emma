@@ -293,8 +293,9 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
 
               blockRefDef._2
 
-            // flatmap to LabyNode
-            case core.DefCall(Some(core.ValRef(tgtSym)), DataBag.flatMap, Seq(outTpe), Seq(Seq(lbdaRef))) =>
+            // TODO insert memoize calls into transformations
+            // TODO cross to LabyNode
+            case core.DefCall(Some(Ops.ref), Ops.cross, targs, Seq(Seq(lhsRef, rhsRef))) =>
 
               vd
 
@@ -469,6 +470,8 @@ object Memo {
     // Labyrinth Types
     memoizeTypeInfo(implicitly[org.emmalanguage.api.Meta[labyrinth.util.Nothing]], createTypeInformation)
     memoizeTypeInfo(implicitly[org.emmalanguage.api.Meta[Seq[Int]]], createTypeInformation)
+    memoizeTypeInfo(implicitly[org.emmalanguage.api.Meta[org.apache.flink.api.java.tuple.Tuple2[Int, String]]],
+      createTypeInformation)
   }
 
   def memoizeTypeInfo[T](implicit meta: org.emmalanguage.api.Meta[T], info: TypeInformation[T])
