@@ -17,12 +17,13 @@ package org.emmalanguage
 package labyrinth.operators;
 
 import labyrinth.BagOperatorOutputCollector
+import api.DataBag
 
 import java.util
 
 object ScalaOps {
 
-  def map[IN, OUT](f: (IN => OUT)): FlatMap[IN, OUT] = {
+  def map[IN, OUT](f: IN => OUT): FlatMap[IN, OUT] = {
 
     new FlatMap[IN, OUT]() {
       override def pushInElement(e: IN, logicalInputId: Int): Unit = {
@@ -40,6 +41,20 @@ object ScalaOps {
         f(e, out)
       }
     }
+  }
+
+  def flatMapDataBagHelper[IN, OUT](f: IN => DataBag[OUT]): FlatMap[IN, OUT] = {
+
+    val lbda = (e: IN, coll: BagOperatorOutputCollector[OUT]) =>
+      for(elem <- f(e)) yield { coll.collectElement(elem) }
+
+    new FlatMap[IN, OUT]() {
+      override def pushInElement(e: IN, logicalInputId: Int): Unit = {
+        super.pushInElement(e, logicalInputId)
+        lbda(e, out)
+      }
+    }
+
   }
 
   def fromNothing[OUT](f: () => OUT ): BagOperator[org.emmalanguage.labyrinth.util.Nothing,OUT] = {

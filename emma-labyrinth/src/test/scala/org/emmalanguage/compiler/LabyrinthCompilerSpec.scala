@@ -428,7 +428,8 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
         val a = () => 1
       }
 
-      expandAndAnf(applyLabynization()(inp)) shouldBe alphaEqTo(anfPipeline(exp))
+      // expandAndAnf(applyLabynization()(inp)) shouldBe alphaEqTo(anfPipeline(exp))
+      applyLabynization()(inp) shouldBe alphaEqTo(anfPipeline(exp))
     }
 
     "singSrc rhs" in {
@@ -484,6 +485,98 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
 
       applyLabynization()(inp) shouldBe alphaEqTo(anfPipeline(exp))
     }
+  }
+
+  "map"in {
+    val inp = reify {
+      val s = Seq(1,2,3)
+      val db = DataBag(s)
+      val dbm = db.map(x => add1(x))
+    }
+
+    val exp = reify {
+      val n1 = new LabyNode[labyrinth.util.Nothing, Seq[Int]](
+        "fromNothing",
+        ScalaOps.fromNothing[Seq[Int]](() => {
+          val tmp = Seq(1,2,3); tmp
+        }),
+        1,
+        new Always0[labyrinth.util.Nothing](1),
+        null,
+        new ElementOrEventTypeInfo[Seq[Int]](Memo.typeInfoForType[Seq[Int]])
+      )
+        .setParallelism(1)
+
+      val n2 = new LabyNode[Seq[Int], Int](
+        "fromSingSrcApply",
+        ScalaOps.fromSingSrcApply[Int](),
+        1,
+        new Always0[Seq[Int]](1),
+        null,
+        new ElementOrEventTypeInfo[Int](Memo.typeInfoForType[Int])
+      )
+        .addInput(n1, true, false)
+        .setParallelism(1)
+
+      val n3 = new LabyNode[Int, Int](
+        "map",
+        ScalaOps.map(x => add1(x)),
+        1,
+        new Always0[Int](1),
+        null,
+        new ElementOrEventTypeInfo[Int](Memo.typeInfoForType[Int])
+      )
+        .addInput(n2, true, false)
+        .setParallelism(1)
+    }
+
+    applyLabynization()(inp) shouldBe alphaEqTo(anfPipeline(exp))
+  }
+
+  "flatmap"in {
+    val inp = reify {
+      val s = Seq(1,2,3)
+      val db = DataBag(s)
+      val dbm = db.flatMap(x => DataBag(Seq(0, add1(x))))
+    }
+
+    val exp = reify {
+      val n1 = new LabyNode[labyrinth.util.Nothing, Seq[Int]](
+        "fromNothing",
+        ScalaOps.fromNothing[Seq[Int]](() => {
+          val tmp = Seq(1,2,3); tmp
+        }),
+        1,
+        new Always0[labyrinth.util.Nothing](1),
+        null,
+        new ElementOrEventTypeInfo[Seq[Int]](Memo.typeInfoForType[Seq[Int]])
+      )
+        .setParallelism(1)
+
+      val n2 = new LabyNode[Seq[Int], Int](
+        "fromSingSrcApply",
+        ScalaOps.fromSingSrcApply[Int](),
+        1,
+        new Always0[Seq[Int]](1),
+        null,
+        new ElementOrEventTypeInfo[Int](Memo.typeInfoForType[Int])
+      )
+        .addInput(n1, true, false)
+        .setParallelism(1)
+
+      val n3 = new LabyNode[Int, Int](
+        "map",
+        ScalaOps.flatMapDataBagHelper(x => DataBag(Seq(0, add1(x)))),
+        1,
+        new Always0[Int](1),
+        null,
+        new ElementOrEventTypeInfo[Int](Memo.typeInfoForType[Int])
+      )
+        .addInput(n2, true, false)
+        .setParallelism(1)
+    }
+
+    applyLabynization()(inp) shouldBe alphaEqTo(anfPipeline(exp))
   }
 
   def expandAndAnf(t: u.Tree) : u.Tree = {
