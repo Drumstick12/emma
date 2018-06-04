@@ -18,6 +18,7 @@ package labyrinth.operators;
 
 import labyrinth.BagOperatorOutputCollector
 import api.DataBag
+import labyrinth.util.SerializedBuffer
 
 import java.util
 
@@ -123,6 +124,8 @@ object ScalaOps {
       override protected def keyExtr(e: IN): K = keyExtractor(e)
     }
   }
+
+  def cross[A,B]: Cross[A,B] = new Cross[A,B] {}
 
   def singletonBagOperator[IN, OUT](f: IN => OUT): SingletonBagOperator[IN, OUT] = {
     new SingletonBagOperator[IN, OUT] {
