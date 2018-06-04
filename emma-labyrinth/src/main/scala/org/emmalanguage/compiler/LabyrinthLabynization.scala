@@ -157,11 +157,146 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
                 Seq(),
                 SetParallelismRefDef._1
               )
-              val blockRefDef = valRefAndDef(owner, "setPrllzm", blockVDrhs)
+              val blockSym = newSymbol(owner, "setPrllzm", blockVDrhs)
+              val blockRefDef = valRefAndDef(blockSym, blockVDrhs)
+              replacements += (lhs -> blockSym)
 
               postPrint(blockRefDef._2)
 
               blockRefDef._2
+
+            // map to LabyNode
+            case core.DefCall(Some(core.ValRef(tgtSym)), DataBag.map, Seq(outTpe), Seq(Seq(lbdaRef))) =>
+
+              val tgtReplSym = replacements(tgtSym)
+              val tgtReplRef = core.ValRef(tgtReplSym)
+
+              val inTpe = tgtSym.info.typeArgs.head
+
+              // bagoperator
+              val bagOpVDrhs = core.DefCall(
+                Some(ScalaOps$.ref),
+                ScalaOps$.map,
+                Seq(inTpe, outTpe),
+                Seq(Seq(lbdaRef))
+              )
+              val bagOpRefDef = valRefAndDef(owner, "fromSingSrcApply", bagOpVDrhs)
+
+              // partitioner
+              val targetPara = 1
+              val partVDrhs = core.Inst(
+                getTpe[Always0[Any]],
+                Seq(inTpe),
+                Seq(Seq(core.Lit(targetPara)))
+              )
+              val partRefDef = valRefAndDef(owner, "partitioner", partVDrhs)
+
+              // typeinfo OUT
+              val typeInfoOUTRefDef = getTypeInfoForTypeRefDef(owner, outTpe)
+
+              // ElementOrEventTypeInfo
+              val elementOrEventTypeInfoRefDef = getElementOrEventTypeInfoRefDef(owner, outTpe, typeInfoOUTRefDef._1)
+
+              // LabyNode
+              val labyNodeRefDef = getLabyNodeRefDef(
+                owner,
+                (inTpe, outTpe),
+                "map",
+                bagOpRefDef._1,
+                1,
+                partRefDef._1,
+                elementOrEventTypeInfoRefDef._1
+              )
+
+              // addInput
+              val addInputRefDef = getAddInputRefDef(owner, labyNodeRefDef._1, tgtReplRef)
+
+              // setParallelism
+              val SetParallelismRefDef = getSetParallelismRefDef(owner, addInputRefDef._1, 1)
+
+              // put everything into a block
+              val blockVDrhs = core.Let(
+                Seq(bagOpRefDef._2, partRefDef._2, typeInfoOUTRefDef._2, elementOrEventTypeInfoRefDef._2,
+                  labyNodeRefDef._2, addInputRefDef._2, SetParallelismRefDef._2),
+                Seq(),
+                SetParallelismRefDef._1
+              )
+              val blockSym = newSymbol(owner, "setPrllzm", blockVDrhs)
+              val blockRefDef = valRefAndDef(blockSym, blockVDrhs)
+              replacements += (lhs -> blockSym)
+
+              postPrint(blockRefDef._2)
+
+              blockRefDef._2
+
+            // flatmap to LabyNode
+            case core.DefCall(Some(core.ValRef(tgtSym)), DataBag.flatMap, Seq(outTpe), Seq(Seq(lbdaRef))) =>
+
+              val tgtReplSym = replacements(tgtSym)
+              val tgtReplRef = core.ValRef(tgtReplSym)
+
+              val inTpe = tgtSym.info.typeArgs.head
+
+              // bagoperator
+              val bagOpVDrhs = core.DefCall(
+                Some(ScalaOps$.ref),
+                ScalaOps$.flatMapDataBagHelper,
+                Seq(inTpe, outTpe),
+                Seq(Seq(lbdaRef))
+              )
+              val bagOpRefDef = valRefAndDef(owner, "fromSingSrcApply", bagOpVDrhs)
+
+              // partitioner
+              val targetPara = 1
+              val partVDrhs = core.Inst(
+                getTpe[Always0[Any]],
+                Seq(inTpe),
+                Seq(Seq(core.Lit(targetPara)))
+              )
+              val partRefDef = valRefAndDef(owner, "partitioner", partVDrhs)
+
+              // typeinfo OUT
+              val typeInfoOUTRefDef = getTypeInfoForTypeRefDef(owner, outTpe)
+
+              // ElementOrEventTypeInfo
+              val elementOrEventTypeInfoRefDef = getElementOrEventTypeInfoRefDef(owner, outTpe, typeInfoOUTRefDef._1)
+
+              // LabyNode
+              val labyNodeRefDef = getLabyNodeRefDef(
+                owner,
+                (inTpe, outTpe),
+                "map",
+                bagOpRefDef._1,
+                1,
+                partRefDef._1,
+                elementOrEventTypeInfoRefDef._1
+              )
+
+              // addInput
+              val addInputRefDef = getAddInputRefDef(owner, labyNodeRefDef._1, tgtReplRef)
+
+              // setParallelism
+              val SetParallelismRefDef = getSetParallelismRefDef(owner, addInputRefDef._1, 1)
+
+              // put everything into a block
+              val blockVDrhs = core.Let(
+                Seq(bagOpRefDef._2, partRefDef._2, typeInfoOUTRefDef._2, elementOrEventTypeInfoRefDef._2,
+                  labyNodeRefDef._2, addInputRefDef._2, SetParallelismRefDef._2),
+                Seq(),
+                SetParallelismRefDef._1
+              )
+              val blockSym = newSymbol(owner, "setPrllzm", blockVDrhs)
+              val blockRefDef = valRefAndDef(blockSym, blockVDrhs)
+              replacements += (lhs -> blockSym)
+
+              postPrint(blockRefDef._2)
+
+              blockRefDef._2
+
+            // flatmap to LabyNode
+            case core.DefCall(Some(core.ValRef(tgtSym)), DataBag.flatMap, Seq(outTpe), Seq(Seq(lbdaRef))) =>
+
+              vd
 
             case _ => vd
           }
@@ -243,8 +378,11 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
   object ScalaOps$ extends ModuleAPI {
     lazy val sym = api.Sym[ScalaOps.type].asModule
 
+    val flatMapDataBagHelper = op("flatMapDataBagHelper")
     val fromNothing = op("fromNothing")
     val fromSingSrcApply = op("fromSingSrcApply")
+    val map = op("map")
+
 
     override def ops = Set()
   }
@@ -284,7 +422,6 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
 
     val setParallelism = op("setParallelism")
     val addInput = op("addInput", List(3))
-
     override def ops = Set()
   }
 
