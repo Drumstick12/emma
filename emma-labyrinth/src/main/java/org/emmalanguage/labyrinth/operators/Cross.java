@@ -17,14 +17,13 @@
 package org.emmalanguage.labyrinth.operators;
 
 import org.apache.flink.api.java.tuple.Tuple2;
+import org.emmalanguage.labyrinth.util.SerializedBuffer;
 import scala.util.Either;
-
-import java.util.ArrayList;
 
 public class Cross<A, B> extends BagOperator<Either<A,B>, Tuple2<A,B>> implements ReusingBagOperator {
 
-    private ArrayList<A> lhsBuffered; // build
-    private ArrayList<B> rhsBuffered;
+	private SerializedBuffer<Either<A,B>> lhsBuffered; // build
+    private SerializedBuffer<Either<A,B>> rhsBuffered;
     private boolean lhsDone;
     private boolean rhsDone;
 
@@ -33,7 +32,7 @@ public class Cross<A, B> extends BagOperator<Either<A,B>, Tuple2<A,B>> implement
     @Override
     public void openOutBag() {
         super.openOutBag();
-        rhsBuffered = new ArrayList<>();
+        rhsBuffered = new SerializedBuffer<>(inSer);
         lhsDone = false;
         rhsDone = false;
         reuse = false;
@@ -51,7 +50,7 @@ public class Cross<A, B> extends BagOperator<Either<A,B>, Tuple2<A,B>> implement
         if (logicalInputId == 0) {
             // lhs
             if (!reuse) {
-                lhsBuffered = new ArrayList<>();
+                lhsBuffered = new SerializedBuffer<>(inSer);
             }
         }
     }
@@ -61,12 +60,12 @@ public class Cross<A, B> extends BagOperator<Either<A,B>, Tuple2<A,B>> implement
         super.pushInElement(e, logicalInputId);
         if (logicalInputId == 0) { // lhs side
             assert !lhsDone;
-            lhsBuffered.add(e.left().getOrElse(null));
+            lhsBuffered.add(e);
         } else { // rhs
             if (!lhsDone) {
-                rhsBuffered.add(e.right().getOrElse(null));
+                rhsBuffered.add(e);
             } else {
-                generateTuples(e.right().getOrElse(null));
+                generateTuples(e);
             }
         }
     }
@@ -77,7 +76,7 @@ public class Cross<A, B> extends BagOperator<Either<A,B>, Tuple2<A,B>> implement
         if (inputId == 0) { // lhs
             assert !lhsDone;
             lhsDone = true;
-            for (B b: rhsBuffered) {
+            for (Either<A,B> b: rhsBuffered) {
                 generateTuples(b);
             }
             if (rhsDone) {
@@ -93,12 +92,12 @@ public class Cross<A, B> extends BagOperator<Either<A,B>, Tuple2<A,B>> implement
         }
     }
 
-
-    private void generateTuples(B b) {
-        if (!(b == null))
-        for (A a: lhsBuffered) {
-            if (!(a == null))
-            out.collectElement(Tuple2.of(a, b));
+    private void generateTuples(Either<A,B> b) {
+        for (Either<A,B> a: lhsBuffered) {
+            Tuple2<A, B> outTuple = Tuple2.of(a.left().getOrElse(null), b.right().getOrElse(null));
+            if (!(outTuple.f0 == null || outTuple.f1 == null)) {
+                out.collectElement(outTuple);
+            }
         }
     }
 }
