@@ -633,7 +633,7 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
           .setParallelism(1)
 
         val n1_3 = new LabyNode[Int, Either[Int,String]](
-          "mapEitherize",
+          "map",
           ScalaOps.map(i => scala.util.Left(i)),
           1,
           new Always0[Int](1),
@@ -644,7 +644,7 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
           .setParallelism(1)
 
         val n2_3 = new LabyNode[String, Either[Int,String]](
-          "mapEitherize",
+          "map",
           ScalaOps.map(s => scala.util.Right(s)),
           1,
           new Always0[String](1),

@@ -317,7 +317,7 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
               val bagOpLhsVDrhs = core.DefCall(
                 Some(ScalaOps$.ref),
                 ScalaOps$.map,
-                Seq(tpeA, getTpeDetailed[scala.util.Either[Int,String]]),
+                Seq(tpeA, api.Type.apply(getTpe[scala.util.Either[Any,Any]], Seq(tpeA, tpeB))),
                 Seq(Seq(mapLambdaLhsRefDef._1))
               )
               val bagOpMapLhsRefDef = valRefAndDef(owner, "mapToLeftOp", bagOpLhsVDrhs)
@@ -332,16 +332,20 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
               val partMapLhsRefDef = valRefAndDef(owner, "partitioner", partLhsVDrhs)
 
               // typeinfo OUT
-              val typeInfoMapLhsOUTRefDef = getTypeInfoForTypeRefDef(owner, getTpe[scala.util.Either[Any,Any]])
+              val typeInfoMapLhsOUTRefDef =
+                getTypeInfoForTypeRefDef(owner, api.Type.apply(getTpe[scala.util.Either[Any,Any]], Seq(tpeA, tpeB)))
 
               // ElementOrEventTypeInfo
               val elementOrEventTypeInfoMapLhsRefDef =
-                getElementOrEventTypeInfoRefDef(owner, getTpe[scala.util.Either[Any,Any]], typeInfoMapLhsOUTRefDef._1)
+                getElementOrEventTypeInfoRefDef(
+                  owner,
+                  api.Type.apply(getTpe[scala.util.Either[Any,Any]], Seq(tpeA, tpeB)),
+                  typeInfoMapLhsOUTRefDef._1)
 
               // LabyNode
               val labyNodeMapLhsRefDef = getLabyNodeRefDef(
                 owner,
-                (tpeA, getTpe[scala.util.Either[Any,Any]]),
+                (tpeA, api.Type.apply(getTpe[scala.util.Either[Any,Any]], Seq(tpeA, tpeB))),
                 "map",
                 bagOpMapLhsRefDef._1,
                 1,
@@ -365,17 +369,17 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
               // bagoperator
               val parSymRhs = api.ParSym(owner, api.TermName.fresh("t"), tpeB)
               val parRefRhs = core.ParRef(parSymRhs)
-              val lbdaCallRhs = core.DefCall(Some(Left$.ref), Left$.apply,
+              val lbdaCallRhs = core.DefCall(Some(Right$.ref), Right$.apply,
                 Seq(getTpe[scala.Nothing], tpeB), Seq(Seq(parRefRhs)))
               val lbdaCAllRhsRefDef = valRefAndDef(owner, "lambda", lbdaCallRhs)
               val lbdaBodyRhs = core.Let(Seq(lbdaCAllRhsRefDef._2), Seq(), lbdaCAllRhsRefDef._1)
               val mapLambdaRhs = core.Lambda(Seq(parSymRhs), lbdaBodyRhs)
-              val mapLambdaRhsRefDef = valRefAndDef(owner, "lbdaLeft", mapLambdaRhs)
+              val mapLambdaRhsRefDef = valRefAndDef(owner, "lbdaRight", mapLambdaRhs)
 
               val bagOpRhsVDrhs = core.DefCall(
                 Some(ScalaOps$.ref),
                 ScalaOps$.map,
-                Seq(tpeB, getTpe[scala.util.Either[Any,Any]]),
+                Seq(tpeB, api.Type.apply(getTpe[scala.util.Either[Any,Any]], Seq(tpeA, tpeB))),
                 Seq(Seq(mapLambdaRhsRefDef._1))
               )
               val bagOpMapRhsRefDef = valRefAndDef(owner, "mapToRightOp", bagOpRhsVDrhs)
@@ -390,16 +394,20 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
               val partMapRhsRefDef = valRefAndDef(owner, "partitioner", partRhsVDrhs)
 
               // typeinfo OUT
-              val typeInfoMapRhsOUTRefDef = getTypeInfoForTypeRefDef(owner, getTpe[scala.util.Either[Any,Any]])
+              val typeInfoMapRhsOUTRefDef =
+                getTypeInfoForTypeRefDef(owner, api.Type.apply(getTpe[scala.util.Either[Any,Any]], Seq(tpeA, tpeB)))
 
               // ElementOrEventTypeInfo
-              val elementOrEventTypeInfoMapRhsRefDef =
-                getElementOrEventTypeInfoRefDef(owner, getTpe[scala.util.Either[Any,Any]], typeInfoMapRhsOUTRefDef._1)
+              val elementOrEventTypeInfoMapRhsRefDef = getElementOrEventTypeInfoRefDef(
+                owner,
+                api.Type.apply(getTpe[scala.util.Either[Any,Any]], Seq(tpeA, tpeB)),
+                typeInfoMapRhsOUTRefDef._1
+              )
 
               // LabyNode
               val labyNodeMapRhsRefDef = getLabyNodeRefDef(
                 owner,
-                (tpeB, getTpe[scala.util.Either[Any,Any]]),
+                (tpeB, api.Type.apply(getTpe[scala.util.Either[Any,Any]], Seq(tpeA, tpeB))),
                 "map",
                 bagOpMapRhsRefDef._1,
                 1,
@@ -420,7 +428,7 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
               val bagOpCrossVDrhs = core.DefCall(
                 Some(ScalaOps$.ref),
                 ScalaOps$.cross,
-                Seq(getTpe[scala.util.Either[Any,Any]], getTpe[org.apache.flink.api.java.tuple.Tuple2[Any,Any]]),
+                Seq(tpeA,tpeB),
                 Seq()
               )
               val bagOpCrossRefDef = valRefAndDef(owner, "crossOp", bagOpCrossVDrhs)
@@ -429,22 +437,29 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
               val targetParaCross = 1
               val partVDcross = core.Inst(
                 getTpe[Always0[Any]],
-                Seq(tpeA),
+                Seq(api.Type.apply(getTpe[scala.util.Either[Any,Any]], Seq(tpeA, tpeB))),
                 Seq(Seq(core.Lit(targetParaCross)))
               )
               val partCrossRefDef = valRefAndDef(owner, "partitioner", partVDcross)
 
               // typeinfo OUT
-              val typeInfoMapCrossOUTRefDef = getTypeInfoForTypeRefDef(owner, getTpe[scala.util.Either[Any,Any]])
+              val typeInfoMapCrossOUTRefDef = getTypeInfoForTypeRefDef(
+                owner,
+                api.Type.apply(getTpe[org.apache.flink.api.java.tuple.Tuple2[Any,Any]], Seq(tpeA, tpeB))
+              )
 
               // ElementOrEventTypeInfo
               val elementOrEventTypeInfoCrossRefDef =
-                getElementOrEventTypeInfoRefDef(owner, getTpe[scala.util.Either[Any,Any]], typeInfoMapCrossOUTRefDef._1)
+                getElementOrEventTypeInfoRefDef(
+                  owner,
+                  api.Type.apply(getTpe[org.apache.flink.api.java.tuple.Tuple2[Any,Any]], Seq(tpeA, tpeB)),
+                  typeInfoMapCrossOUTRefDef._1)
 
               // LabyNode
               val labyNodeCrossRefDef = getLabyNodeRefDef(
                 owner,
-                (tpeA, getTpe[scala.util.Either[Any,Any]]),
+                (api.Type.apply(getTpe[scala.util.Either[Any,Any]], Seq(tpeA, tpeB)),
+                  api.Type.apply(getTpe[org.apache.flink.api.java.tuple.Tuple2[Any,Any]], Seq(tpeA, tpeB))),
                 "cross",
                 bagOpCrossRefDef._1,
                 1,
@@ -635,7 +650,7 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
     override def ops = Set()
   }
 
-  def getTpe[T: u.WeakTypeTag] : u.Type = api.Sym[T].asClass.toTypeConstructor
+  def getTpe[T: u.WeakTypeTag] : u.Type = api.Sym[T].asClass.toTypeConstructor.widen
   def getTpeDetailed[T: u.WeakTypeTag] : u.Type = api.Sym[T].asClass.info
 
 }
