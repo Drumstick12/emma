@@ -94,10 +94,7 @@ public class Cross<A, B> extends BagOperator<Either<A,B>, Tuple2<A,B>> implement
 
     private void generateTuples(Either<A,B> b) {
         for (Either<A,B> a: lhsBuffered) {
-            Tuple2<A, B> outTuple = Tuple2.of(a.left().getOrElse(null), b.right().getOrElse(null));
-            if (!(outTuple.f0 == null || outTuple.f1 == null)) {
-                out.collectElement(outTuple);
-            }
+            out.collectElement(Tuple2.of(a.left().get(), b.right().get()));
         }
     }
 }
