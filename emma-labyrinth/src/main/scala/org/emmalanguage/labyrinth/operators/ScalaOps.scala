@@ -125,7 +125,8 @@ object ScalaOps {
     }
   }
 
-  def cross[A,B]: Cross[A,B] = new Cross[A,B] {}
+  def cross[A,B]: BagOperator[Either[A, B], org.apache.flink.api.java.tuple.Tuple2[A, B]] =
+    new Cross[A,B] {}
 
   def singletonBagOperator[IN, OUT](f: IN => OUT): SingletonBagOperator[IN, OUT] = {
     new SingletonBagOperator[IN, OUT] {
