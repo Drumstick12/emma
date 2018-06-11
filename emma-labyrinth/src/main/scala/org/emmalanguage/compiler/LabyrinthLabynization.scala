@@ -293,7 +293,6 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
 
               blockRefDef._2
 
-            // TODO cross to LabyNode
             case core.DefCall
               (_, Ops.cross, Seq(tpeA, tpeB), Seq(Seq(core.ValRef(lhsSym), core.ValRef(rhsSym)))) =>
 
@@ -499,6 +498,17 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
 
               blockRefDef._2
 
+            // TODO fold1
+            case core.DefCall (_, DB$.fold1, Seq(tpeA, tpeB), Seq(Seq(core.ValRef(dbSym), core.ValRef(algSym)))) =>
+              println(tpeA, tpeB, dbSym, algSym)
+              vd
+
+
+            // TODO fold2
+            case core.DefCall (_, DB$.fold2, Seq(tpeA, tpeB), Seq(Seq(tgt, zero, init, plus))) =>
+              println(tpeA, tpeB, tgt, zero, init, plus)
+              vd
+
             case _ => vd
           }
         }
@@ -651,8 +661,6 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
   }
 
   def getTpe[T: u.WeakTypeTag] : u.Type = api.Sym[T].asClass.toTypeConstructor.widen
-  def getTpeDetailed[T: u.WeakTypeTag] : u.Type = api.Sym[T].asClass.info
-
 }
 
 
