@@ -18,7 +18,7 @@ package labyrinth.operators;
 
 import labyrinth.BagOperatorOutputCollector
 import api.DataBag
-import labyrinth.util.SerializedBuffer
+import org.emmalanguage.api.alg.Alg
 
 import java.util
 
@@ -117,6 +117,35 @@ object ScalaOps {
 
   def reduceGroup[K,A](keyExtractor: A => K, f: (A, A) => A): FoldGroup[K, A, A] = {
     foldGroup(keyExtractor, (x:A) => x, f)
+  }
+
+  def fold[A,B](zero: B, init: A => B, plus: (B, B) => B): BagOperator[A,B] = {
+    new Fold[A,B] {
+      override def openInBag(logicalInputId: Int): Unit = {
+        super.openInBag(logicalInputId)
+        assert (host.subpartitionId == 0) // Parallelism should be 1.
+        result = zero
+      }
+
+      override def pushInElement(e: A, logicalInputId: Int): Unit = {
+        super.pushInElement(e, logicalInputId)
+        result = plus(result, init(e))
+      }
+
+      override def closeInBag(inputId: Int): Unit = {
+        super.closeInBag(inputId)
+        out.collectElement(result)
+        out.closeBag()
+      }
+    }
+  }
+
+  def foldAlgHelper[A,B](alg: Alg[A,B]): BagOperator[A,B] = {
+    fold(alg.zero, alg.init, alg.plus)
+  }
+
+  def reduce[A](zero:A, plus: (A,A) => A): BagOperator[A,A] = {
+    fold(zero, e => e, plus)
   }
 
   def joinGeneric[IN, K](keyExtractor: IN => K): JoinGeneric[IN, K] = {
