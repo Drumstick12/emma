@@ -270,6 +270,27 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
       applyXfrm(labyrinthNormalize)(inp) shouldBe alphaEqTo(anfPipeline(exp))
     }
 
+    "fold2 - zero is databag" in {
+      val inp = reify {
+        val s = Seq("foo")
+        val b = DataBag(s)
+        val z = Seq[Int]()
+        val c: Seq[Int] = b.fold(z)((s: String) => Seq(s.length), (a, b) => a ++ b)
+        c
+      }
+
+      val exp = reify {
+        val s = DB.singSrc(() => { val tmp = Seq("foo"); tmp })
+        val bs: DataBag[String] = DB.fromSingSrcApply(s)
+        val z = DB.singSrc(() => { val tmp = Seq[Int](); tmp })
+        val c: DataBag[Seq[Int]] =
+          DB.fold2FromSingSrc[String, Seq[Int]](bs, z, (s: String) => Seq(s.length), (a, b) => a ++ b)
+        c
+      }
+
+      applyXfrm(labyrinthNormalize)(inp) shouldBe alphaEqTo(anfPipeline(exp))
+    }
+
 
     "method collect" in {
       val inp = reify {
@@ -705,7 +726,7 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
         val count = Count[Int](_ => true)
 
         val c = new LabyNode[Int, Long](
-          "fold",
+          "fold1",
           ScalaOps.foldAlgHelper(count),
           1,
           new Always0[Int](1),
@@ -751,13 +772,61 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
           .setParallelism(1)
 
         val c = new LabyNode[String, Int](
-          "fold",
+          "fold2",
           ScalaOps.fold(0, (s: String) => s.length, (a,b) => a + b),
           1,
           new Always0[String](1),
           null,
           new ElementOrEventTypeInfo[Int](Memo.typeInfoForType[Int])
         )
+          .addInput(n2, true, false)
+          .setParallelism(1)
+      }
+
+      applyLabynization()(inp) shouldBe alphaEqTo(anfPipeline(exp))
+    }
+
+    "fold2 - zero is databag" in {
+      val inp = reify {
+        val s = Seq("foo")
+        val b = DataBag(s)
+        val c: Seq[Int] = b.fold(Seq[Int]())((s: String) => Seq(s.length), (a, b) => a ++ b)
+      }
+
+      val exp = reify {
+        val n1 = new LabyNode[labyrinth.util.Nothing, Seq[String]](
+          "fromNothing",
+          ScalaOps.fromNothing[Seq[String]](() => {
+            val tmp = Seq("foo"); tmp
+          }),
+          1,
+          new Always0[labyrinth.util.Nothing](1),
+          null,
+          new ElementOrEventTypeInfo[Seq[String]](Memo.typeInfoForType[Seq[String]])
+        )
+          .setParallelism(1)
+
+        val n2 = new LabyNode[Seq[String], String](
+          "fromSingSrcApply",
+          ScalaOps.fromSingSrcApply[String](),
+          1,
+          new Always0[Seq[String]](1),
+          null,
+          new ElementOrEventTypeInfo[String](Memo.typeInfoForType[String])
+        )
+          .addInput(n1, true, false)
+          .setParallelism(1)
+
+        val c = new LabyNode[String, Seq[Int]](
+          "fold2",
+          ScalaOps.fold(Seq[Int](), (s: String) => Seq(s.length), (a,b) => a ++ b),
+          1,
+          new Always0[String](1),
+          null,
+          new ElementOrEventTypeInfo[Seq[Int]](Memo.typeInfoForType[Seq[Int]])
+        )
+          .addInput(n2, true, false)
+          .setParallelism(1)
       }
 
       applyLabynization()(inp) shouldBe alphaEqTo(anfPipeline(exp))
