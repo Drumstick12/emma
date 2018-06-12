@@ -233,6 +233,48 @@ trait LabyrinthNormalization extends LabyrinthCompilerBase {
 
               blockFinalRefDef._2
 
+            // fold2 from singsrc
+            // val db = ...
+            // val zero: B = singSrc(...)
+            // val init: (A => B) = ...
+            // val plus: (B => B) = ...
+            // val nondb = db.fold[B](zero)(init, plus)
+            //=========================
+            // val db = ...
+            // val zero: B = ...
+            // val init: (A => B) = ...
+            // val plus: (B => B) = ...
+            // val db = DB.foldToBag[A,B](db, zero, init, plus)
+            case core.DefCall
+              (Some(core.ValRef(tgtSym)), DataBag.fold2, targs, Seq(Seq(core.ValRef(zeroSym)), Seq(init, plus))) =>
+              val tgtSymRepl =
+                if (replacements.keys.toList.map(_.name).contains(tgtSym.name)) replacements(tgtSym)
+                else tgtSym
+              val tgtRepl = core.ValRef(tgtSymRepl)
+
+              val zeroSymRepl =
+                if (replacements.keys.toList.map(_.name).contains(zeroSym.name)) replacements(zeroSym)
+                else zeroSym
+              val zeroRepl = core.ValRef(zeroSymRepl)
+
+              val inTpe = tgtSym.info.typeArgs.head
+              val outTpe = targs.head
+              val targsRepl = Seq(inTpe, outTpe)
+
+              val ndc =
+                core.DefCall(Some(DB$.ref), DB$.fold2FromSingSrc, targsRepl, Seq(Seq(tgtRepl, zeroRepl, init, plus)))
+              val ndcRefDef = valRefAndDef(owner, "fold2", ndc)
+
+              val blockFinal = core.Let(Seq(ndcRefDef._2), Seq(), ndcRefDef._1)
+              val blockFinalSym = newSymbol(owner, "db", blockFinal)
+              val blockFinalRefDef = valRefAndDef(blockFinalSym, blockFinal)
+              skip(blockFinalRefDef._2)
+
+              replacements += (lhs -> blockFinalSym)
+              defs += (blockFinalSym -> blockFinalRefDef._2)
+
+              blockFinalRefDef._2
+
             // fold2
             // val db = ...
             // val zero: B = ...
