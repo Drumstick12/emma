@@ -142,6 +142,7 @@ trait LabyrinthCompilerBase extends Compiler {
     val singSrc = op("singSrc")
     val fold1 = op("fold1")
     val fold2 = op("fold2")
+    val fold2FromSingSrc = op("fold2FromSingSrc")
     val fromSingSrcApply = op("fromSingSrcApply")
     val fromSingSrcReadText = op("fromSingSrcReadText")
     val fromSingSrcReadCSV = op("fromSingSrcReadCSV")
@@ -203,6 +204,13 @@ object DB {
   ( db: org.emmalanguage.api.DataBag[A], zero: B, init: A => B, plus: (B,B) => B )
   : org.emmalanguage.api.DataBag[B] = {
     org.emmalanguage.api.DataBag(Seq(db.fold(zero)(init, plus)))
+  }
+
+  // fold2 from zero singSrc
+  def fold2FromSingSrc[A: org.emmalanguage.api.Meta, B: org.emmalanguage.api.Meta]
+  ( db: org.emmalanguage.api.DataBag[A], zero: org.emmalanguage.api.DataBag[B], init: A => B, plus: (B,B) => B )
+  : org.emmalanguage.api.DataBag[B] = {
+    org.emmalanguage.api.DataBag(Seq(db.fold(zero.collect().head)(init, plus)))
   }
 
   def collect[A: org.emmalanguage.api.Meta](db: org.emmalanguage.api.DataBag[A]) :
