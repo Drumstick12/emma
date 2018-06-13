@@ -142,7 +142,6 @@ trait LabyrinthCompilerBase extends Compiler {
     val singSrc = op("singSrc")
     val fold1 = op("fold1")
     val fold2 = op("fold2")
-    val fold2FromSingSrc = op("fold2FromSingSrc")
     val fromSingSrcApply = op("fromSingSrcApply")
     val fromSingSrcReadText = op("fromSingSrcReadText")
     val fromSingSrcReadCSV = op("fromSingSrcReadCSV")

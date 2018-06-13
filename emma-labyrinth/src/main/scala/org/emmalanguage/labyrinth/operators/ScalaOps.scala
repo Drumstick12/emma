@@ -18,7 +18,8 @@ package labyrinth.operators;
 
 import labyrinth.BagOperatorOutputCollector
 import api.DataBag
-import org.emmalanguage.api.alg.Alg
+import api.alg.Alg
+import labyrinth.util.SerializedBuffer
 
 import java.util
 

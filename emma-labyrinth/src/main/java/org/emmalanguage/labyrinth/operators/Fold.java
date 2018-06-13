@@ -17,6 +17,5 @@
 package org.emmalanguage.labyrinth.operators;
 
 public class Fold<IN, OUT> extends BagOperator<IN, OUT> {
-
 	OUT result;
 }
