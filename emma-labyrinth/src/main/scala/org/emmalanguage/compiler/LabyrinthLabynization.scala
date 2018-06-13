@@ -50,6 +50,10 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
 
           rhs match {
 
+            // TODO fromSingSrcReadText to LabyNode
+            case core.DefCall(_, DB$.fromSingSrcReadText, Seq(targ), Seq(Seq(core.ValRef(dbPathSym)))) =>
+              vd
+
             // singSrc to LabyNode
             case core.DefCall(Some(DB$.ref), DB$.singSrc, Seq(targ), Seq(Seq(funarg))) =>
 
