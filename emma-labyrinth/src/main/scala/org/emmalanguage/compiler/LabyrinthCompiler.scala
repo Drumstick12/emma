@@ -38,7 +38,8 @@ trait LabyrinthCompiler
     // labyrinth transformations
     labyrinthNormalize,
     Core.unnest,
-    labyrinthLabynize
+    labyrinthLabynize,
+    Core.unnest
 
     // lowering
     //    Core.trampoline iff "emma.compiler.lower" is "trampoline"
