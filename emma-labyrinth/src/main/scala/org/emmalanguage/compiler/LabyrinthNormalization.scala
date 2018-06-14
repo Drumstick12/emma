@@ -105,7 +105,7 @@ trait LabyrinthNormalization extends LabyrinthCompilerBase {
                 val dbRhs = core.DefCall(
                   Some(DB$.ref),
                   DB$.fromSingSrcReadText,
-                  Seq(argReplRef.tpe.widen.typeArgs.head),
+                  Seq(),
                   Seq(Seq(argReplRef))
                 )
                 val dbSym = newSymbol(owner, "db", dbRhs)

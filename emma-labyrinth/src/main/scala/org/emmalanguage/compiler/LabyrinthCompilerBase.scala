@@ -171,7 +171,7 @@ object DB {
     org.emmalanguage.api.DataBag(db.collect().head)
   }
 
-  def fromSingSrcReadText[A: org.emmalanguage.api.Meta](db: org.emmalanguage.api.DataBag[String]):
+  def fromSingSrcReadText(db: org.emmalanguage.api.DataBag[String]):
   org.emmalanguage.api.DataBag[String] = {
     org.emmalanguage.api.DataBag.readText(db.collect().head)
   }

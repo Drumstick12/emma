@@ -24,6 +24,8 @@ import labyrinth._
 import labyrinth.operators._
 import labyrinth.partitioners._
 
+import org.apache.flink.core.fs.FileInputSplit
+
 //import org.apache.flink.api.scala._
 import org.apache.flink.api.common.ExecutionConfig
 import org.apache.flink.api.java.tuple.Tuple2
@@ -756,6 +758,53 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
           new Always0[String](1),
           null,
           new ElementOrEventTypeInfo[Int](Memo.typeInfoForType[Int])
+        )
+          .addInput(n2, true, false)
+          .setParallelism(1)
+      }
+
+      applyLabynization()(inp) shouldBe alphaEqTo(anfPipeline(exp))
+    }
+
+    "read Text" in {
+      val inp = reify {
+        val p = DB.singSrc(() => "path")
+        val rt = DB.fromSingSrcReadText(p)
+      }
+
+      val exp = reify {
+        val n1 = new LabyNode[labyrinth.util.Nothing, String](
+          "fromNothing",
+          ScalaOps.fromNothing[String](() => {
+            val tmp = "path"; tmp
+          }),
+          1,
+          new Always0[labyrinth.util.Nothing](1),
+          null,
+          new ElementOrEventTypeInfo[String](Memo.typeInfoForType[String])
+        )
+          .setParallelism(1)
+
+        val n2 = new LabyNode[String, InputFormatWithInputSplit[String, FileInputSplit]](
+          "inputSplits",
+          ScalaOps.textSource,
+          1,
+          new Always0[String](1),
+          null,
+          new ElementOrEventTypeInfo[InputFormatWithInputSplit[String, FileInputSplit]](
+            Memo.typeInfoForType[InputFormatWithInputSplit[String, FileInputSplit]]
+          )
+        )
+          .addInput(n1, true, false)
+          .setParallelism(1)
+
+        val n3 = new LabyNode[InputFormatWithInputSplit[String, FileInputSplit], String](
+          "readSplits",
+          ScalaOps.textReader,
+          1,
+          new Always0[InputFormatWithInputSplit[String, FileInputSplit]](1),
+          null,
+          new ElementOrEventTypeInfo[String](Memo.typeInfoForType[String])
         )
           .addInput(n2, true, false)
           .setParallelism(1)
