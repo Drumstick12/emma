@@ -19,10 +19,12 @@ package compiler
 
 import labyrinth.operators.ScalaOps
 import labyrinth.partitioners._
+import org.emmalanguage.labyrinth.operators.InputFormatWithInputSplit
 
 import org.apache.flink.api.common.typeinfo.TypeInformation
 import org.apache.flink.api.java.typeutils.TypeExtractor
 import org.apache.flink.api.scala.typeutils.TypeUtils
+import org.apache.flink.core.fs.FileInputSplit
 import shapeless.::
 
 import scala.runtime.Nothing$
@@ -51,7 +53,54 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
           rhs match {
 
             // TODO fromSingSrcReadText to LabyNode
-            case core.DefCall(_, DB$.fromSingSrcReadText, Seq(targ), Seq(Seq(core.ValRef(dbPathSym)))) =>
+            case core.DefCall(_, DB$.fromSingSrcReadText, _, Seq(Seq(core.ValRef(dbPathSym)))) =>
+              val dbPathSymRepl = replacements(dbPathSym)
+              val dbPathSymReplRef = core.ValRef(dbPathSymRepl)
+
+              //// get splits
+              // bagoperator
+              val bagOpVDrhs = core.DefCall(Some(ScalaOps$.ref), ScalaOps$.textSource, Seq(), Seq())
+              val bagOpRefDef = valRefAndDef(owner, "textSource", bagOpVDrhs)
+
+              // partitioner
+              val targetPara = 1
+              val partVDrhs = core.Inst(
+                getTpe[Always0[Any]],
+                Seq(dbPathSym.info.typeArgs.head),
+                Seq(Seq(core.Lit(targetPara)))
+              )
+              val partRefDef = valRefAndDef(owner, "partitioner", partVDrhs)
+
+              // typeinfo OUT
+              val tpeOut = api.Type.apply(
+                getTpe[InputFormatWithInputSplit[Any, Any]].widen.typeConstructor,
+                Seq(getTpe[String], getTpe[FileInputSplit])
+              )
+              val typeInfoOUTRefDef = getTypeInfoForTypeRefDef(
+                owner,
+                tpeOut
+              )
+
+              // ElementOrEventTypeInfo
+              val elementOrEventTypeInfoRefDef = getElementOrEventTypeInfoRefDef(owner, tpeOut, typeInfoOUTRefDef._1)
+
+              // LabyNode
+              val labyNodeRefDef = getLabyNodeRefDef(
+                owner,
+                (getTpe[String], tpeOut),
+                "textSource",
+                bagOpRefDef._1,
+                1,
+                partRefDef._1,
+                elementOrEventTypeInfoRefDef._1
+              )
+
+              // TODO block and read
+
+
+              // read splits
+
+
               vd
 
             // singSrc to LabyNode
@@ -701,10 +750,12 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
     val flatMapDataBagHelper = op("flatMapDataBagHelper")
     val fold = op("fold")
     val foldAlgHelper = op("foldAlgHelper")
-    val reduce = op("reduce")
     val fromNothing = op("fromNothing")
     val fromSingSrcApply = op("fromSingSrcApply")
     val map = op("map")
+    val reduce = op("reduce")
+    val textRead = op("textRead")
+    val textSource = op("textSource")
 
 
     override def ops = Set()

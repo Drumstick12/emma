@@ -20,6 +20,9 @@ import labyrinth.BagOperatorOutputCollector
 import api.DataBag
 import api.alg.Alg
 import labyrinth.util.SerializedBuffer
+import org.emmalanguage.compiler.Memo
+
+import org.apache.flink.core.fs.FileInputSplit
 
 import java.util
 
@@ -169,5 +172,13 @@ object ScalaOps {
 
   def union[T](): Union[T] = {
     new Union[T]
+  }
+
+  def textSource: BagOperator[String, InputFormatWithInputSplit[String, FileInputSplit]] = {
+    new CFAwareTextSource
+  }
+
+  def textReader: BagOperator[InputFormatWithInputSplit[String, FileInputSplit], String] = {
+    new CFAwareFileSourceParaReader[String, FileInputSplit](Memo.typeInfoForType[String])
   }
 }
