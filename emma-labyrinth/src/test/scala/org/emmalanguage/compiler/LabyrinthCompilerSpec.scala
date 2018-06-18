@@ -768,8 +768,8 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
 
     "read Text" in {
       val inp = reify {
-        val p = DB.singSrc(() => "path")
-        val rt = DB.fromSingSrcReadText(p)
+        val p = "path"
+        val rt = DataBag.readText(p)
       }
 
       val exp = reify {
