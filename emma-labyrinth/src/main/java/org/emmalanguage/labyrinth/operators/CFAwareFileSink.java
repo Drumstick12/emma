@@ -90,7 +90,7 @@ public class CFAwareFileSink extends BagOperator<Integer, Unit> implements DontT
                 FileSystem fs = FileSystem.get(new URI(currentFileName));
                 //BufferedReader br = new BufferedReader(new InputStreamReader(fs.open(new Path(currentFileName))));
 
-                //PrintWriter writer = new PrintWriter(currentFileName, "UTF-8");
+                //PrintWriter csvWriter = new PrintWriter(currentFileName, "UTF-8");
                 PrintWriter writer = new PrintWriter(fs.create(new Path(currentFileName), FileSystem.WriteMode.OVERWRITE));
                 for (Integer e : buffer) {
                     writer.println(Integer.toString(e));

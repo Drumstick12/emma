@@ -94,9 +94,9 @@ object LabyrinthExamplesRunner extends LabyrinthAware {
 //        // Graphs
 //        case "triangle-count" =>
 //          Some(triangleCount(cfg)(flinkEnv(cfg)))
-//        // Text
-//        case "word-count" =>
-//          Some(wordCount(cfg)(flinkEnv(cfg)))
+        // Text
+        case "word-count" =>
+          Some(wordCount(cfg)(flinkEnv(cfg)))
         case _ =>
           None
       }
@@ -125,16 +125,16 @@ object LabyrinthExamplesRunner extends LabyrinthAware {
 //      println(s"The number of triangles in the graph is $triangleCount")
 //    }
 
-//  def wordCount(c: Config)(implicit flink: StreamExecutionEnvironment): Unit =
-//    emma.onLabyrinth {
-//      // read the input files and split them into lowercased words
-//      val docs = DataBag.readText(c.input)
-//      // parse and count the words
-//      // val counts = WordCount(docs)
-//      // write the results into a file
-//      // counts.writeCSV(c.output, c.csv)
-//      docs.writeCSV(c.output, c.csv)
-//    }
+  def wordCount(c: Config)(implicit flink: StreamExecutionEnvironment): Unit =
+    emma.onLabyrinth {
+      // read the input files and split them into lowercased words
+      val docs = DataBag.readText(c.input)
+      // parse and count the words
+      // val counts = WordCount(docs)
+      // write the results into a file
+      // counts.writeCSV(c.output, c.csv)
+      docs.writeCSV(c.output, c.csv)
+    }
 
   // ---------------------------------------------------------------------------
   // Helper methods
