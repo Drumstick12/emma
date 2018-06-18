@@ -668,8 +668,6 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
 
               blockRefDef._2
 
-
-            // TODO fold2
             case core.DefCall (_, DB$.fold2, targs @ Seq(tpeA, tpeB), Seq(Seq(core.ValRef(dbSym), zero, init, plus))) =>
 
               val dbReplSym = replacements(dbSym)
@@ -717,6 +715,267 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
                   elementOrEventTypeInfoRefDef._2, labyNodeRefDef._2, addInputRefDef._2, SetParallelismRefDef._2),
                 Seq(),
                 SetParallelismRefDef._1
+              )
+              val blockSym = newSymbol(owner, "setPrllzm", blockVDrhs)
+              val blockRefDef = valRefAndDef(blockSym, blockVDrhs)
+              replacements += (lhs -> blockSym)
+
+              postPrint(blockRefDef._2)
+
+              blockRefDef._2
+
+            case core.DefCall(_, DB$.fromDatabagWriteCSV, Seq(dbTpe),
+            Seq(Seq(core.ValRef(dbSym), core.ValRef(pathSym), core.ValRef(csvSym)))) =>
+
+              val dbSymRepl = replacements(dbSym)
+              val pathSymRepl = replacements(pathSym)
+              val csvSymRepl = replacements(csvSym)
+              val dbReplRef = core.ValRef(dbSymRepl)
+              val pathReplRef = core.ValRef(pathSymRepl)
+              val csvReplRef = core.ValRef(csvSymRepl)
+
+              val csvTpe = csvSym.info.typeArgs.head
+              val pathTpe = pathSym.info.typeArgs.head
+
+              // ========== db to Left ========= //
+              // bagoperator
+              val parSymLhs = api.ParSym(owner, api.TermName.fresh("t"), dbTpe)
+              val parRefLhs = core.ParRef(parSymLhs)
+              val lbdaCallLhs = core.DefCall(Some(Left$.ref), Left$.apply,
+                Seq(dbTpe, getTpe[scala.Nothing]), Seq(Seq(parRefLhs)))
+              val lbdaCAllLhsRefDef = valRefAndDef(owner, "lambda", lbdaCallLhs)
+              val lbdaBodyLhs = core.Let(Seq(lbdaCAllLhsRefDef._2), Seq(), lbdaCAllLhsRefDef._1)
+              val mapLambdaLhs = core.Lambda(Seq(parSymLhs), lbdaBodyLhs)
+              val mapLambdaLhsRefDef = valRefAndDef(owner, "lbdaLeft", mapLambdaLhs)
+
+              val bagOpLhsVDrhs = core.DefCall(
+                Some(ScalaOps$.ref),
+                ScalaOps$.map,
+                Seq(dbTpe, api.Type.apply(getTpe[scala.util.Either[Any,Any]], Seq(dbTpe, csvTpe))),
+                Seq(Seq(mapLambdaLhsRefDef._1))
+              )
+              val bagOpMapLhsRefDef = valRefAndDef(owner, "mapToLeftOp", bagOpLhsVDrhs)
+
+              // partitioner
+              val targetParaLhs = 1
+              val partLhsVDrhs = core.Inst(
+                getTpe[Always0[Any]],
+                Seq(dbTpe),
+                Seq(Seq(core.Lit(targetParaLhs)))
+              )
+              val partMapLhsRefDef = valRefAndDef(owner, "partitioner", partLhsVDrhs)
+
+              // typeinfo OUT
+              val typeInfoMapLhsOUTRefDef =
+                getTypeInfoForTypeRefDef(owner, api.Type.apply(getTpe[scala.util.Either[Any,Any]], Seq(dbTpe, csvTpe)))
+
+              // ElementOrEventTypeInfo
+              val elementOrEventTypeInfoMapLhsRefDef =
+                getElementOrEventTypeInfoRefDef(
+                  owner,
+                  api.Type.apply(getTpe[scala.util.Either[Any,Any]], Seq(dbTpe, csvTpe)),
+                  typeInfoMapLhsOUTRefDef._1)
+
+              // LabyNode
+              val labyNodeMapLhsRefDef = getLabyNodeRefDef(
+                owner,
+                (dbTpe, api.Type.apply(getTpe[scala.util.Either[Any,Any]], Seq(dbTpe, csvTpe))),
+                "map",
+                bagOpMapLhsRefDef._1,
+                1,
+                partMapLhsRefDef._1,
+                elementOrEventTypeInfoMapLhsRefDef._1
+              )
+
+              // addInput
+              val addInputMapLhsRefDef = getAddInputRefDef(owner, labyNodeMapLhsRefDef._1, dbReplRef)
+
+              // setParallelism
+              val SetParallelismMapLhsRefDef = getSetParallelismRefDef(owner, addInputMapLhsRefDef._1, 1)
+
+              // ========== csv to Right ========== //
+              // bagoperator
+              val parSymRhs = api.ParSym(owner, api.TermName.fresh("t"), csvTpe)
+              val parRefRhs = core.ParRef(parSymRhs)
+              val lbdaCallRhs = core.DefCall(Some(Right$.ref), Right$.apply,
+                Seq(getTpe[scala.Nothing], csvTpe), Seq(Seq(parRefRhs)))
+              val lbdaCAllRhsRefDef = valRefAndDef(owner, "lambda", lbdaCallRhs)
+              val lbdaBodyRhs = core.Let(Seq(lbdaCAllRhsRefDef._2), Seq(), lbdaCAllRhsRefDef._1)
+              val mapLambdaRhs = core.Lambda(Seq(parSymRhs), lbdaBodyRhs)
+              val mapLambdaRhsRefDef = valRefAndDef(owner, "lbdaRight", mapLambdaRhs)
+
+              val bagOpRhsVDrhs = core.DefCall(
+                Some(ScalaOps$.ref),
+                ScalaOps$.map,
+                Seq(csvTpe, api.Type.apply(getTpe[scala.util.Either[Any,Any]], Seq(dbTpe, csvTpe))),
+                Seq(Seq(mapLambdaRhsRefDef._1))
+              )
+              val bagOpMapRhsRefDef = valRefAndDef(owner, "mapToRightOp", bagOpRhsVDrhs)
+
+              // partitioner
+              val targetParaRhs = 1
+              val partRhsVDrhs = core.Inst(
+                getTpe[Always0[Any]],
+                Seq(csvTpe),
+                Seq(Seq(core.Lit(targetParaRhs)))
+              )
+              val partMapRhsRefDef = valRefAndDef(owner, "partitioner", partRhsVDrhs)
+
+              // typeinfo OUT
+              val typeInfoMapRhsOUTRefDef =
+                getTypeInfoForTypeRefDef(owner, api.Type.apply(getTpe[scala.util.Either[Any,Any]], Seq(dbTpe, csvTpe)))
+
+              // ElementOrEventTypeInfo
+              val elementOrEventTypeInfoMapRhsRefDef = getElementOrEventTypeInfoRefDef(
+                owner,
+                api.Type.apply(getTpe[scala.util.Either[Any,Any]], Seq(dbTpe, csvTpe)),
+                typeInfoMapRhsOUTRefDef._1
+              )
+
+              // LabyNode
+              val labyNodeMapRhsRefDef = getLabyNodeRefDef(
+                owner,
+                (csvTpe, api.Type.apply(getTpe[scala.util.Either[Any,Any]], Seq(dbTpe, csvTpe))),
+                "map",
+                bagOpMapRhsRefDef._1,
+                1,
+                partMapRhsRefDef._1,
+                elementOrEventTypeInfoMapRhsRefDef._1
+              )
+
+              // addInput
+              val addInputMapRhsRefDef = getAddInputRefDef(owner, labyNodeMapRhsRefDef._1, csvReplRef)
+
+              // setParallelism
+              val SetParallelismMapRhsRefDef = getSetParallelismRefDef(owner, addInputMapRhsRefDef._1, 1)
+
+              // ========== toCsvString ========== //
+              val bagOpToCsvStringVDrhs = core.DefCall(
+                Some(ScalaOps$.ref),
+                ScalaOps$.toCsvString,
+                Seq(dbTpe),
+                Seq()
+              )
+              val bagOpToCsvStringRefDef = valRefAndDef(owner, "toCsvString", bagOpToCsvStringVDrhs)
+
+              // partitioner
+              val targetParaToCsvString = 1
+              val partVDToCsvString = core.Inst(
+                getTpe[Always0[Any]],
+                Seq(api.Type.apply(getTpe[scala.util.Either[Any,Any]], Seq(dbTpe, csvTpe))),
+                Seq(Seq(core.Lit(targetParaToCsvString)))
+              )
+              val partToCsvStringRefDef = valRefAndDef(owner, "partitioner", partVDToCsvString)
+
+              // typeinfo OUT
+              val typeInfoMapToCsvStringOUTRefDef = getTypeInfoForTypeRefDef(
+                owner,
+                pathTpe // String
+              )
+
+              // ElementOrEventTypeInfo
+              val elementOrEventTypeInfoToCsvStringRefDef =
+                getElementOrEventTypeInfoRefDef(
+                  owner,
+                  pathTpe,
+                  typeInfoMapToCsvStringOUTRefDef._1)
+
+              // LabyNode
+              val labyNodeToCsvStringRefDef = getLabyNodeRefDef(
+                owner,
+                (api.Type.apply(getTpe[scala.util.Either[Any,Any]], Seq(dbTpe, csvTpe)), pathTpe),
+                "toCsvString",
+                bagOpToCsvStringRefDef._1,
+                1,
+                partToCsvStringRefDef._1,
+                elementOrEventTypeInfoToCsvStringRefDef._1
+              )
+
+              // addInput
+              val addInputToCsvStringRefDef1 =
+                getAddInputRefDef(owner, labyNodeToCsvStringRefDef._1, SetParallelismMapLhsRefDef._1)
+              val addInputToCsvStringRefDef2 =
+                getAddInputRefDef(owner, addInputToCsvStringRefDef1._1, SetParallelismMapRhsRefDef._1)
+
+              // setParallelism
+              val setParallelismToCsvStringRefDef = getSetParallelismRefDef(owner, addInputToCsvStringRefDef2._1, 1)
+
+              // ========== stringSink ========== //
+              // bagoperator
+
+              val bagOpWriteStringVDrhs = core.DefCall(
+                Some(ScalaOps$.ref),
+                ScalaOps$.writeString,
+                Seq(),
+                Seq()
+              )
+              val bagOpWriteStringRefDef = valRefAndDef(owner, "writeString", bagOpWriteStringVDrhs)
+
+              // partitioner
+              val targetParaWriteString = 1
+              val partVDWriteString = core.Inst(
+                getTpe[Always0[Any]],
+                Seq(pathTpe),
+                Seq(Seq(core.Lit(targetParaWriteString)))
+              )
+              val partWriteStringRefDef = valRefAndDef(owner, "partitioner", partVDWriteString)
+
+              // typeinfo OUT
+              val typeInfoMapWriteStringOUTRefDef = getTypeInfoForTypeRefDef(
+                owner,
+                u.typeOf[Unit]
+              )
+
+              // ElementOrEventTypeInfo
+              val elementOrEventTypeInfoWriteStringRefDef =
+                getElementOrEventTypeInfoRefDef(
+                  owner,
+                  u.typeOf[Unit],
+                  typeInfoMapWriteStringOUTRefDef._1)
+
+              // LabyNode
+              val labyNodeWriteStringRefDef = getLabyNodeRefDef(
+                owner,
+                (pathTpe, u.typeOf[Unit]),
+                "stringFileSink",
+                bagOpWriteStringRefDef._1,
+                1,
+                partWriteStringRefDef._1,
+                elementOrEventTypeInfoWriteStringRefDef._1
+              )
+
+              // addInput
+              val addInputWriteStringRefDef1 =
+                getAddInputRefDef(owner, labyNodeWriteStringRefDef._1, pathReplRef)
+              val addInputWriteStringRefDef2 =
+                getAddInputRefDef(owner, addInputWriteStringRefDef1._1, setParallelismToCsvStringRefDef._1)
+
+              // setParallelism
+              val SetParallelismWriteStringRefDef = getSetParallelismRefDef(owner, addInputWriteStringRefDef2._1, 1)
+
+              // put everything into a block
+              val blockVDrhs = core.Let(
+                Seq(
+                  // data to Left()
+                  mapLambdaLhsRefDef._2, bagOpMapLhsRefDef._2, partMapLhsRefDef._2, typeInfoMapLhsOUTRefDef._2,
+                  elementOrEventTypeInfoMapLhsRefDef._2, labyNodeMapLhsRefDef._2, addInputMapLhsRefDef._2,
+                  SetParallelismMapLhsRefDef._2,
+                  // csv to Right()
+                  mapLambdaRhsRefDef._2, bagOpMapRhsRefDef._2, partMapRhsRefDef._2, typeInfoMapRhsOUTRefDef._2,
+                  elementOrEventTypeInfoMapRhsRefDef._2, labyNodeMapRhsRefDef._2, addInputMapRhsRefDef._2,
+                  SetParallelismMapRhsRefDef._2,
+                  // to csvString
+                  bagOpToCsvStringRefDef._2, partToCsvStringRefDef._2, typeInfoMapToCsvStringOUTRefDef._2,
+                  elementOrEventTypeInfoToCsvStringRefDef._2, labyNodeToCsvStringRefDef._2,
+                  addInputToCsvStringRefDef1._2, addInputToCsvStringRefDef2._2, setParallelismToCsvStringRefDef._2,
+                  // StringSink
+                  bagOpWriteStringRefDef._2, partWriteStringRefDef._2, typeInfoMapWriteStringOUTRefDef._2,
+                  elementOrEventTypeInfoWriteStringRefDef._2, labyNodeWriteStringRefDef._2,
+                  addInputWriteStringRefDef1._2, addInputWriteStringRefDef2._2,
+                  SetParallelismWriteStringRefDef._2
+                ),
+                Seq(),
+                SetParallelismWriteStringRefDef._1
               )
               val blockSym = newSymbol(owner, "setPrllzm", blockVDrhs)
               val blockRefDef = valRefAndDef(blockSym, blockVDrhs)
@@ -816,6 +1075,8 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
     val reduce = op("reduce")
     val textReader = op("textReader")
     val textSource = op("textSource")
+    val toCsvString = op("toCsvString")
+    val writeString = op("writeString")
 
 
     override def ops = Set()
