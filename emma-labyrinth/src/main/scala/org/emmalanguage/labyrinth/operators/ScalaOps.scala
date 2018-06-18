@@ -21,12 +21,11 @@ import api.DataBag
 import api.alg.Alg
 import compiler.Memo
 import io.csv.CSV
-import org.emmalanguage.api.CSVConverter
-import org.emmalanguage.io.csv.CSVConverter
-import org.emmalanguage.io.csv.CSVScalaSupport
-import org.emmalanguage.labyrinth.util.SerializedBuffer
-
+import io.csv.CSVScalaSupport
+import labyrinth.util.SerializedBuffer
 import org.apache.flink.core.fs.FileInputSplit
+
+import scala.util.Either
 
 import java.util
 
@@ -229,5 +228,9 @@ object ScalaOps {
         csvWriter.writeRowToString(rec)
       }
     }
+  }
+
+  def writeString: BagOperator[String, scala.Unit] = {
+    new FileSinkString
   }
 }

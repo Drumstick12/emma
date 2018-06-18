@@ -822,9 +822,9 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
 
     "write csv" in {
       val inp = reify {
-        val fun1: () => Seq[String] = () => { val tmp = Seq("foo", "bar"); tmp }
-        val d = DB.singSrc[Seq[String]](fun1)
-        val db = DB.fromSingSrcApply[String](d)
+        val fun1: () => Seq[Int] = () => { val tmp = Seq(1, 2); tmp }
+        val d = DB.singSrc[Seq[Int]](fun1)
+        val db = DB.fromSingSrcApply[Int](d)
         val fun2: () => String = () => { val tmp = "path"; tmp }
         val p = DB.singSrc[String](fun2)
         val fun3: () => CSV = () => {val tmp = csvDummy; tmp }
@@ -916,6 +916,18 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
         )
           .addInput(dataEither, true, false)
           .addInput(csvEither, true, false)
+          .setParallelism(1)
+
+        val nStringSink = new LabyNode[String, Unit](
+          "stringFileSink",
+          ScalaOps.writeString,
+          1,
+          new Always0[String](1),
+          null,
+          new ElementOrEventTypeInfo[Unit](Memo.typeInfoForType[Unit])
+        )
+          .addInput(nPath, true, false)
+          .addInput(nToCsvString, true, false)
           .setParallelism(1)
 
       }
