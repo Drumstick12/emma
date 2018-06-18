@@ -52,7 +52,6 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
 
           rhs match {
 
-            // TODO fromSingSrcReadText to LabyNode
             case core.DefCall(_, DB$.fromSingSrcReadText, _, Seq(Seq(core.ValRef(dbPathSym)))) =>
               val dbPathSymRepl = replacements(dbPathSym)
               val dbPathSymReplRef = core.ValRef(dbPathSymRepl)
@@ -165,7 +164,7 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
               blockRefDef._2
 
             // singSrc to LabyNode
-            case core.DefCall(Some(DB$.ref), DB$.singSrc, Seq(targ), Seq(Seq(funarg))) =>
+            case core.DefCall(_, DB$.singSrc, Seq(targ), Seq(Seq(funarg))) =>
 
               // bagoperator
               val bagOpVDrhs = core.DefCall(Some(ScalaOps$.ref), ScalaOps$.fromNothing, Seq(targ), Seq(Seq(funarg)))
@@ -216,7 +215,7 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
               blockRefDef._2
 
             // fromSingSrc to LabyNode
-            case core.DefCall(Some(DB$.ref), DB$.fromSingSrcApply, Seq(targ), Seq(Seq(core.ValRef(singSrcDBsym)))) =>
+            case core.DefCall(_, DB$.fromSingSrcApply, Seq(targ), Seq(Seq(core.ValRef(singSrcDBsym)))) =>
 
               val singSrcDBReplSym = replacements(singSrcDBsym)
               val singSrcDBReplRef = core.ValRef(singSrcDBReplSym)
@@ -929,6 +928,7 @@ object Memo {
     memoizeTypeInfo(implicitly[org.emmalanguage.api.Meta[Seq[String]]], createTypeInformation)
     memoizeTypeInfo(implicitly[org.emmalanguage.api.Meta[org.apache.flink.api.java.tuple.Tuple2[Int, String]]],
       createTypeInformation)
+    memoizeTypeInfo(implicitly[org.emmalanguage.api.Meta[org.emmalanguage.api.CSV]], createTypeInformation)
   }
 
   def memoizeTypeInfo[T](implicit meta: org.emmalanguage.api.Meta[T], info: TypeInformation[T])

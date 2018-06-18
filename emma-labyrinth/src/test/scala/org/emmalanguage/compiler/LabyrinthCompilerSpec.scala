@@ -92,6 +92,13 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
     ).compose(_.tree)
   }
 
+  def applyOnlyLabynization(): u.Expr[Any] => u.Tree = {
+    pipeline(typeCheck = true)(
+      labyrinthLabynize.timed,
+      Core.unnest
+    ).compose(_.tree)
+  }
+
   // ---------------------------------------------------------------------------
   // Spec tests
   // ---------------------------------------------------------------------------
@@ -813,6 +820,110 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
       applyLabynization()(inp) shouldBe alphaEqTo(anfPipeline(exp))
     }
 
+    "write csv" in {
+      val inp = reify {
+        val fun1: () => Seq[String] = () => { val tmp = Seq("foo", "bar"); tmp }
+        val d = DB.singSrc[Seq[String]](fun1)
+        val db = DB.fromSingSrcApply[String](d)
+        val fun2: () => String = () => { val tmp = "path"; tmp }
+        val p = DB.singSrc[String](fun2)
+        val fun3: () => CSV = () => {val tmp = csvDummy; tmp }
+        val csv = DB.singSrc[org.emmalanguage.io.csv.CSV](fun3)
+        val s = DB.fromDatabagWriteCSV(db, p, csv)
+      }
+
+      val exp = reify {
+        val nData = new LabyNode[labyrinth.util.Nothing, Seq[Int]](
+          "fromNothing",
+          ScalaOps.fromNothing[Seq[Int]](() => {
+            val tmp = Seq(1, 2); tmp
+          }),
+          1,
+          new Always0[labyrinth.util.Nothing](1),
+          null,
+          new ElementOrEventTypeInfo[Seq[Int]](Memo.typeInfoForType[Seq[Int]])
+        )
+          .setParallelism(1)
+
+        val nDataFSS = new LabyNode[Seq[Int], Int](
+          "fromSingSrcApply",
+          ScalaOps.fromSingSrcApply[Int](),
+          1,
+          new Always0[Seq[Int]](1),
+          null,
+          new ElementOrEventTypeInfo[Int](Memo.typeInfoForType[Int])
+        )
+          .addInput(nData, true, false)
+          .setParallelism(1)
+
+        val nPath = new LabyNode[labyrinth.util.Nothing, String](
+          "fromNothing",
+          ScalaOps.fromNothing[String](() => {
+            val tmp = "path"; tmp
+          }),
+          1,
+          new Always0[labyrinth.util.Nothing](1),
+          null,
+          new ElementOrEventTypeInfo[String](Memo.typeInfoForType[String])
+        )
+          .setParallelism(1)
+
+        val nCSV = new LabyNode[labyrinth.util.Nothing, org.emmalanguage.io.csv.CSV](
+          "fromNothing",
+          ScalaOps.fromNothing[org.emmalanguage.io.csv.CSV](() => {
+            val tmp = csvDummy; tmp
+          }),
+          1,
+          new Always0[labyrinth.util.Nothing](1),
+          null,
+          new ElementOrEventTypeInfo[org.emmalanguage.io.csv.CSV](Memo.typeInfoForType[org.emmalanguage.io.csv.CSV])
+        )
+          .setParallelism(1)
+
+        val dataEither = new LabyNode[Int, Either[Int,org.emmalanguage.io.csv.CSV]](
+          "map",
+          ScalaOps.map(i => scala.util.Left(i)),
+          1,
+          new Always0[Int](1),
+          null,
+          new ElementOrEventTypeInfo[Either[Int,org.emmalanguage.io.csv.CSV]](
+            Memo.typeInfoForType[Either[Int,org.emmalanguage.io.csv.CSV]]
+          )
+        )
+          .addInput(nDataFSS, true, false)
+          .setParallelism(1)
+
+        val csvEither = new LabyNode[org.emmalanguage.io.csv.CSV, Either[Int,org.emmalanguage.io.csv.CSV]](
+          "map",
+          ScalaOps.map(s => scala.util.Right(s)),
+          1,
+          new Always0[org.emmalanguage.io.csv.CSV](1),
+          null,
+          new ElementOrEventTypeInfo[Either[Int,org.emmalanguage.io.csv.CSV]](
+            Memo.typeInfoForType[Either[Int,org.emmalanguage.io.csv.CSV]]
+          )
+        )
+          .addInput(nCSV, true, false)
+          .setParallelism(1)
+
+        val nToCsvString = new LabyNode[Either[Int, CSV], String](
+          "toCsvString",
+          ScalaOps.toCsvString[Int],
+          1,
+          new Always0[Either[Int, CSV]](1),
+          null,
+          new ElementOrEventTypeInfo[String](Memo.typeInfoForType[String])
+        )
+          .addInput(dataEither, true, false)
+          .addInput(csvEither, true, false)
+          .setParallelism(1)
+
+      }
+
+      applyOnlyLabynization()(inp) shouldBe alphaEqTo(anfPipeline(exp))
+
+    }
+
   }
 
   def expandAndAnf(t: u.Tree) : u.Tree = {
@@ -822,6 +933,8 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
       Core.unnest
     )(tt)
   }
+
+  val csvDummy = CSV()
 }
 
 case class Edge[V](src: V, dst: V)

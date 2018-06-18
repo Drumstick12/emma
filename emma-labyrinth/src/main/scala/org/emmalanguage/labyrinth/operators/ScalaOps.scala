@@ -19,8 +19,12 @@ package labyrinth.operators;
 import labyrinth.BagOperatorOutputCollector
 import api.DataBag
 import api.alg.Alg
-import labyrinth.util.SerializedBuffer
-import org.emmalanguage.compiler.Memo
+import compiler.Memo
+import io.csv.CSV
+import org.emmalanguage.api.CSVConverter
+import org.emmalanguage.io.csv.CSVConverter
+import org.emmalanguage.io.csv.CSVScalaSupport
+import org.emmalanguage.labyrinth.util.SerializedBuffer
 
 import org.apache.flink.core.fs.FileInputSplit
 
@@ -180,5 +184,50 @@ object ScalaOps {
 
   def textReader: BagOperator[InputFormatWithInputSplit[String, FileInputSplit], String] = {
     new CFAwareFileSourceParaReader[String, FileInputSplit](Memo.typeInfoForType[String])
+  }
+
+  def toCsvString[T](implicit converter: org.emmalanguage.io.csv.CSVConverter[T]): BagOperator[Either[T, CSV], String] =
+  {
+    new ToCsvString[T] {
+
+      override def openOutBag(): Unit = {
+        super.openOutBag()
+        buff = new SerializedBuffer[Either[T, CSV]](inSer)
+        csvConv = converter
+      }
+
+      override def pushInElement(e: Either[T, CSV], logicalInputId: Int): Unit = {
+        super.pushInElement(e, logicalInputId)
+        if (logicalInputId == 0) { // input data
+          if (!csvWriterInitiated) {
+            buff.add(e)
+          }
+          else { // generate string from input
+            out.collectElement(generateString(e))
+          }
+        }
+        else { // CSV info
+          csvInfo = e.right.get
+          csvInfoInitiated = true
+          csvWriter = CSVScalaSupport[T](csvInfo).writer()
+          csvWriterInitiated = true
+          // generate strings from buffered input
+          val it = buff.iterator()
+          while (it.hasNext) { out.collectElement(generateString(it.next())) }
+        }
+      }
+
+      override def closeInBag(inputId: Int): Unit = {
+        super.closeInBag(inputId)
+        csvWriter.close()
+        out.closeBag()
+      }
+
+      def generateString(e: Either[T, CSV]): String = {
+        val rec = Array.ofDim[String](csvConv.size)
+        csvConv.write(e.left.get, rec, 0)(csvInfo)
+        csvWriter.writeRowToString(rec)
+      }
+    }
   }
 }
