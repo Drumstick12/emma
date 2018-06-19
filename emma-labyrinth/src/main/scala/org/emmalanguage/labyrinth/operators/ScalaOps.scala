@@ -23,6 +23,8 @@ import compiler.Memo
 import io.csv.CSV
 import io.csv.CSVScalaSupport
 import labyrinth.util.SerializedBuffer
+import org.emmalanguage.api.Group
+
 import org.apache.flink.core.fs.FileInputSplit
 
 import scala.util.Either
@@ -86,9 +88,9 @@ object ScalaOps {
     }
   }
 
-  def foldGroup[K,IN,OUT](keyExtractor: IN => K, i: IN => OUT, f: (OUT, OUT) => OUT): FoldGroup[K,IN,OUT] = {
+  def foldGroupValues[K,IN,OUT](keyExtractor: IN => K, i: IN => OUT, f: (OUT, OUT) => OUT): BagOperator[IN, OUT] = {
 
-    new FoldGroup[K, IN, OUT]() {
+    new FoldGroupValues[K, IN, OUT]() {
 
       override protected def keyExtr(e: IN): K = keyExtractor(e)
 
@@ -122,8 +124,49 @@ object ScalaOps {
     }
   }
 
-  def reduceGroup[K,A](keyExtractor: A => K, f: (A, A) => A): FoldGroup[K, A, A] = {
-    foldGroup(keyExtractor, (x:A) => x, f)
+  def foldGroup[K,IN,OUT](keyExtractor: IN => K, i: IN => OUT, f: (OUT, OUT) => OUT):
+  BagOperator[IN, Group[K, OUT]] = {
+
+    new FoldGroup[K, IN, OUT]() {
+
+      override protected def keyExtr(e: IN): K = keyExtractor(e)
+
+      override def openOutBag(): Unit = {
+        super.openOutBag()
+        hm = new util.HashMap[K, OUT]
+      }
+
+      override def pushInElement(e: IN, logicalInputId: Int): Unit = {
+        super.pushInElement(e, logicalInputId)
+        val key = keyExtr(e)
+        val g = hm.get(key)
+        if (g == null) {
+          hm.put(key, i(e))
+        } else {
+          hm.replace(key, f(g, i(e)))
+        }
+      }
+
+      override def closeInBag(inputId: Int): Unit = {
+        super.closeInBag(inputId)
+
+        import scala.collection.JavaConversions._
+
+        for (e <- hm.entrySet) {
+          out.collectElement(Group(e.getKey, e.getValue))
+        }
+        hm = null
+        out.closeBag()
+      }
+    }
+  }
+
+  def foldGroupAlgHelper[K,IN,OUT](extr: IN => K, alg: Alg[IN,OUT]): BagOperator[IN, Group[K,OUT]] = {
+    foldGroup[K,IN,OUT](extr, alg.init, alg.plus)
+  }
+
+  def reduceGroup[K,A](keyExtractor: A => K, f: (A, A) => A): BagOperator[A, A] = {
+    foldGroupValues(keyExtractor, (x:A) => x, f)
   }
 
   def fold[A,B](zero: B, init: A => B, plus: (B, B) => B): BagOperator[A,B] = {

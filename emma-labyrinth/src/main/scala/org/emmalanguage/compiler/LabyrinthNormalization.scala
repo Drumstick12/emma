@@ -31,7 +31,7 @@ trait LabyrinthNormalization extends LabyrinthCompilerBase {
     println("___")
     println("==0tree Normalization==")
     println(tree)
-    println("==0tree==")
+    println("==0tree END==")
 
     // first traversal does the labyrinth normalization. second for block type correction.
     val firstRun = api.TopDown.unsafe
@@ -504,7 +504,7 @@ trait LabyrinthNormalization extends LabyrinthCompilerBase {
 
           replacements += (lhs -> dbSym)
           defs += (dbSym -> db)
-          postPrint(db)
+          //postPrint(db)
           db
 
         // if we find a valref in the tree whose def we changed to a databag, replace it by a valref refering to the

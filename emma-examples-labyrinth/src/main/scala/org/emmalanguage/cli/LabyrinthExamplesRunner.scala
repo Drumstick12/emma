@@ -130,10 +130,10 @@ object LabyrinthExamplesRunner extends LabyrinthAware {
       // read the input files and split them into lowercased words
       val docs = DataBag.readText(c.input)
       // parse and count the words
-      // val counts = WordCount(docs)
+      val counts = WordCount(docs)
       // write the results into a file
-      // counts.writeCSV(c.output, c.csv)
-      docs.writeCSV(c.output, c.csv)
+      counts.writeCSV(c.output, c.csv)
+//      docs.writeCSV(c.output, c.csv)
     }
 
   // ---------------------------------------------------------------------------
