@@ -24,9 +24,15 @@ import io.csv.CSV
 import io.csv.CSVScalaSupport
 import labyrinth.util.SerializedBuffer
 import org.emmalanguage.api.Group
+import org.emmalanguage.labyrinth.CFLConfig
+import org.emmalanguage.labyrinth.ElementOrEvent
+import org.emmalanguage.labyrinth.KickoffSource
 import org.emmalanguage.labyrinth.LabyNode
 
+import org.apache.flink.api.java.typeutils.PojoTypeInfo
 import org.apache.flink.core.fs.FileInputSplit
+import org.apache.flink.streaming.api.functions.sink.DiscardingSink
+import org.apache.flink.streaming.api.scala.StreamExecutionEnvironment
 
 import scala.util.Either
 
@@ -237,6 +243,8 @@ object ScalaOps {
         super.openOutBag()
         buff = new SerializedBuffer[Either[T, CSV]](inSer)
         csvConv = converter
+        closed(0) = false
+        closed(1) = false
       }
 
       override def pushInElement(e: Either[T, CSV], logicalInputId: Int): Unit = {
@@ -262,8 +270,13 @@ object ScalaOps {
 
       override def closeInBag(inputId: Int): Unit = {
         super.closeInBag(inputId)
-        csvWriter.close()
-        out.closeBag()
+
+        closed(inputId) = true
+
+        if (closed(0) && closed(1) ) {
+          csvWriter.close()
+          out.closeBag()
+        }
       }
 
       def generateString(e: Either[T, CSV]): String = {
@@ -279,6 +292,14 @@ object ScalaOps {
   }
 }
 
-object LabyNodeStatics {
-  def translateAll(): Unit = LabyNode.translateAll()
+object LabyStatics {
+  def translateAll(implicit env: StreamExecutionEnvironment): Unit = LabyNode.translateAll(env.getJavaEnv)
+  def setTerminalBbid(id: Int): Unit = CFLConfig.getInstance().terminalBBId = id
+  def setKickoffSource(ints: Int*)(implicit env: StreamExecutionEnvironment): Unit = {
+    val kickoffSrc = new KickoffSource(ints:_*)
+    env.addSource(kickoffSrc)(org.apache.flink.api.scala.createTypeInformation[org.emmalanguage.labyrinth.util.Unit])
+      .addSink(new DiscardingSink[org.emmalanguage.labyrinth.util.Unit])
+  }
+  def registerCustomSerializer: Unit = PojoTypeInfo.registerCustomSerializer(classOf[ElementOrEvent[_]],
+    new ElementOrEvent.ElementOrEventSerializerFactory)
 }

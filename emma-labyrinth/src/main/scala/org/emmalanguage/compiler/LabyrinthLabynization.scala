@@ -1090,7 +1090,24 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
       case core.Let(valdefs, defdefs, _) => {
         assert(valdefs.nonEmpty, "Programm should have valdefs!")
         val owner = valdefs.head.symbol.owner
-        val transAllDC = core.DefCall(Some(LabyNodeStatics$.ref), LabyNodeStatics$.translateAll, Seq(), Seq())
+
+        val terminalBbid = 1
+
+        // before code
+        val custSerDC = core.DefCall(Some(LabyStatics$.ref), LabyStatics$.registerCustomSerializer, Seq(), Seq())
+        val customSerDCRefDef = valRefAndDef(owner, "registerCustomSerializer", custSerDC)
+
+        val termIdDC = core.DefCall(Some(LabyStatics$.ref), LabyStatics$.setTerminalBbid, Seq(),
+          Seq(Seq(core.Lit(terminalBbid))))
+        val termIdDCRefDef = valRefAndDef(owner, "terminalBbId", termIdDC)
+
+        val startingBasicBlocks = Seq(core.Lit(1))
+        val kickOffWorldCup2018SourceDC = core.DefCall(Some(LabyStatics$.ref), LabyStatics$.setKickoffSource, Seq(),
+          Seq(startingBasicBlocks))
+        val kickOffWorldCup2018SourceDCRefDef = valRefAndDef(owner, "kickOffSource", kickOffWorldCup2018SourceDC)
+
+        // after code
+        val transAllDC = core.DefCall(Some(LabyStatics$.ref), LabyStatics$.translateAll, Seq(), Seq())
         val transAllDCRefDef = valRefAndDef(owner, "translateAll", transAllDC)
 
         val envImplDC = core.DefCall(
@@ -1104,7 +1121,9 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
         val execDC = core.DefCall(Some(envImplDCRefDef._1), StreamExecutionEnvironment$.execute, Seq(), Seq() )
         val execDCRefDef = valRefAndDef(owner, "envExecute", execDC)
 
-        val newVals = valdefs ++ Seq(transAllDCRefDef._2, envImplDCRefDef._2, execDCRefDef._2)
+        val newVals = Seq(customSerDCRefDef._2, termIdDCRefDef._2, kickOffWorldCup2018SourceDCRefDef._2) ++
+          valdefs ++
+          Seq(transAllDCRefDef._2, envImplDCRefDef._2, execDCRefDef._2)
 
         core.Let(newVals, defdefs, execDCRefDef._1)
       }
@@ -1265,9 +1284,12 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
     override def ops = Set()
   }
 
-  object LabyNodeStatics$ extends ModuleAPI {
-    lazy val sym = api.Sym[org.emmalanguage.labyrinth.operators.LabyNodeStatics.type ].asModule
+  object LabyStatics$ extends ModuleAPI {
+    lazy val sym = api.Sym[org.emmalanguage.labyrinth.operators.LabyStatics.type ].asModule
 
+    val registerCustomSerializer = op("registerCustomSerializer")
+    val setKickoffSource = op("setKickoffSource")
+    val setTerminalBbid = op("setTerminalBbid")
     val translateAll = op("translateAll")
 
     override def ops = Set()
