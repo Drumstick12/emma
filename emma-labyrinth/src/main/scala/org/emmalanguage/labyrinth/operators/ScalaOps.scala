@@ -24,6 +24,7 @@ import io.csv.CSV
 import io.csv.CSVScalaSupport
 import labyrinth.util.SerializedBuffer
 import org.emmalanguage.api.Group
+import org.emmalanguage.labyrinth.LabyNode
 
 import org.apache.flink.core.fs.FileInputSplit
 
@@ -276,4 +277,8 @@ object ScalaOps {
   def writeString: BagOperator[String, scala.Unit] = {
     new FileSinkString
   }
+}
+
+object LabyNodeStatics {
+  def translateAll(): Unit = LabyNode.translateAll()
 }
