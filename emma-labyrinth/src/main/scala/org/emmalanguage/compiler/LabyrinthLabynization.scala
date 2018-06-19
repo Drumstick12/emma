@@ -21,6 +21,7 @@ import labyrinth.operators.ScalaOps
 import labyrinth.partitioners._
 import labyrinth.operators.InputFormatWithInputSplit
 import org.emmalanguage.api.Group
+import org.emmalanguage.labyrinth.LabyNode
 
 import org.apache.flink.api.common.typeinfo.TypeInformation
 import org.apache.flink.api.java.typeutils.TypeExtractor
@@ -1084,18 +1085,34 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
           nlb
       }._tree(trans1)
 
-//    // add LabyNode.translateAll() and env.execute
-//    val fin = trans2 match {
-//      case core.Let(vals, defs, expr) => {
-//
-//
-//
-//      }
-//    }
+    // add LabyNode.translateAll() and env.execute
+    val fin = trans2 match {
+      case core.Let(valdefs, defdefs, _) => {
+        assert(valdefs.nonEmpty, "Programm should have valdefs!")
+        val owner = valdefs.head.symbol.owner
+        val transAllDC = core.DefCall(Some(LabyNodeStatics$.ref), LabyNodeStatics$.translateAll, Seq(), Seq())
+        val transAllDCRefDef = valRefAndDef(owner, "translateAll", transAllDC)
 
+        val envImplDC = core.DefCall(
+          Some(core.Ref(api.Sym.predef)),
+          api.Sym.implicitly,
+          Seq(StreamExecutionEnvironment$.tpe),
+          Seq()
+        )
+        val envImplDCRefDef = valRefAndDef(owner, "implEnv", envImplDC)
 
-    postPrint(trans2)
-    trans2
+        val execDC = core.DefCall(Some(envImplDCRefDef._1), StreamExecutionEnvironment$.execute, Seq(), Seq() )
+        val execDCRefDef = valRefAndDef(owner, "envExecute", execDC)
+
+        val newVals = valdefs ++ Seq(transAllDCRefDef._2, envImplDCRefDef._2, execDCRefDef._2)
+
+        core.Let(newVals, defdefs, execDCRefDef._1)
+      }
+    }
+
+    println("+++++++++++++++++++++++++++++++++++++++++++++++")
+    postPrint(fin)
+    fin
   })
 
   def getTypeInfoForTypeRefDef(owner: u.Symbol, tpe: u.Type): (u.Ident, u.ValDef) = {
@@ -1220,6 +1237,14 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
     override def ops = Set()
   }
 
+  object StreamExecutionEnvironment$ extends ClassAPI {
+    lazy val sym = api.Sym[org.apache.flink.streaming.api.scala.StreamExecutionEnvironment].asClass
+
+    val execute = op("execute")
+
+    override def ops = Set()
+  }
+
   object Tuple2API extends ClassAPI {
     lazy val sym = api.Sym[org.apache.flink.api.java.tuple.Tuple2[Any, Any]].asClass
 
@@ -1238,6 +1263,15 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
   object ElementOrEventAPI extends ClassAPI {
     lazy val sym = api.Sym[labyrinth.ElementOrEventTypeInfo[Any]].asClass
     override def ops = Set()
+  }
+
+  object LabyNodeStatics$ extends ModuleAPI {
+    lazy val sym = api.Sym[org.emmalanguage.labyrinth.operators.LabyNodeStatics.type ].asModule
+
+    val translateAll = op("translateAll")
+
+    override def ops = Set()
+
   }
 
   object LabyNodeAPI extends ClassAPI {
