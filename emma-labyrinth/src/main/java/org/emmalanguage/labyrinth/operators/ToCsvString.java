@@ -21,7 +21,7 @@ import org.emmalanguage.io.csv.CSVConverter;
 import scala.util.Either;
 import org.emmalanguage.labyrinth.util.SerializedBuffer;
 
-public class ToCsvString<T> extends BagOperator<Either<T, CSV>, String> {
+abstract public class ToCsvString<T> extends BagOperator<Either<T, CSV>, String> {
 
 	protected SerializedBuffer<Either<T, CSV>> buff;
 	protected com.univocity.parsers.csv.CsvWriter csvWriter;
@@ -29,5 +29,7 @@ public class ToCsvString<T> extends BagOperator<Either<T, CSV>, String> {
 	protected CSV csvInfo;
 	protected boolean csvWriterInitiated = false;
 	protected boolean csvInfoInitiated = false;
+
+	protected boolean[] closed = new boolean[2];
 
 }
