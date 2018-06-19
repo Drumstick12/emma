@@ -20,6 +20,7 @@ package compiler
 import labyrinth.operators.ScalaOps
 import labyrinth.partitioners._
 import labyrinth.operators.InputFormatWithInputSplit
+import org.emmalanguage.api.Group
 
 import org.apache.flink.api.common.typeinfo.TypeInformation
 import org.apache.flink.api.java.typeutils.TypeExtractor
@@ -39,12 +40,13 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
     val defs = scala.collection.mutable.Map[u.TermSymbol, u.ValDef]()
 
     println("___")
+    println("XXXXXXXXXXXXXXXXXXXXXXXX1")
     println("==0tree Labynization==")
     println(tree)
-    println("==0tree==")
+    println("XXXXXXXXXXXXXXXXXXXXXXXX1")
 
-    // first traversal does the labyrinth normalization. second for block type correction.
-    val transOut = api.TopDown.unsafe
+    // first traversal does the labyrinth labynization. second for block type correction.
+    val trans1 = api.TopDown.unsafe
       .withOwner
       .transformWith {
         case Attr.inh(vd @ core.ValDef(lhs, rhs), owner :: _)
@@ -52,7 +54,7 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
 
           rhs match {
 
-            case core.DefCall(_, DB$.fromSingSrcReadText, _, Seq(Seq(core.ValRef(dbPathSym)))) =>
+            case dc @ core.DefCall(_, DB$.fromSingSrcReadText, _, Seq(Seq(core.ValRef(dbPathSym)))) if prePrint(dc) =>
               val dbPathSymRepl = replacements(dbPathSym)
               val dbPathSymReplRef = core.ValRef(dbPathSymRepl)
 
@@ -159,12 +161,12 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
               val blockRefDef = valRefAndDef(blockSym, blockVDrhs)
               replacements += (lhs -> blockSym)
 
-              postPrint(blockRefDef._2)
+              //postPrint(blockRefDef._2)
 
               blockRefDef._2
 
             // singSrc to LabyNode
-            case core.DefCall(_, DB$.singSrc, Seq(targ), Seq(Seq(funarg))) =>
+            case dc @ core.DefCall(_, DB$.singSrc, Seq(targ), Seq(Seq(funarg))) if prePrint(dc)=>
 
               // bagoperator
               val bagOpVDrhs = core.DefCall(Some(ScalaOps$.ref), ScalaOps$.fromNothing, Seq(targ), Seq(Seq(funarg)))
@@ -210,12 +212,13 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
               val blockRefDef = valRefAndDef(blockSym, blockVDrhs)
               replacements += (lhs -> blockSym)
 
-              postPrint(blockRefDef._2)
+              //postPrint(blockRefDef._2)
 
               blockRefDef._2
 
             // fromSingSrc to LabyNode
-            case core.DefCall(_, DB$.fromSingSrcApply, Seq(targ), Seq(Seq(core.ValRef(singSrcDBsym)))) =>
+            case dc @ core.DefCall(_, DB$.fromSingSrcApply, Seq(targ), Seq(Seq(core.ValRef(singSrcDBsym))))
+            if prePrint(dc) =>
 
               val singSrcDBReplSym = replacements(singSrcDBsym)
               val singSrcDBReplRef = core.ValRef(singSrcDBReplSym)
@@ -274,12 +277,13 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
               val blockRefDef = valRefAndDef(blockSym, blockVDrhs)
               replacements += (lhs -> blockSym)
 
-              postPrint(blockRefDef._2)
+              //postPrint(blockRefDef._2)
 
               blockRefDef._2
 
             // map to LabyNode
-            case core.DefCall(Some(core.ValRef(tgtSym)), DataBag.map, Seq(outTpe), Seq(Seq(lbdaRef))) =>
+            case dc @ core.DefCall(Some(core.ValRef(tgtSym)), DataBag.map, Seq(outTpe), Seq(Seq(lbdaRef)))
+              if prePrint(dc) =>
 
               val tgtReplSym = replacements(tgtSym)
               val tgtReplRef = core.ValRef(tgtReplSym)
@@ -338,12 +342,13 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
               val blockRefDef = valRefAndDef(blockSym, blockVDrhs)
               replacements += (lhs -> blockSym)
 
-              postPrint(blockRefDef._2)
+              //postPrint(blockRefDef._2)
 
               blockRefDef._2
 
             // flatmap to LabyNode
-            case core.DefCall(Some(core.ValRef(tgtSym)), DataBag.flatMap, Seq(outTpe), Seq(Seq(lbdaRef))) =>
+            case dc @ core.DefCall(Some(core.ValRef(tgtSym)), DataBag.flatMap, Seq(outTpe), Seq(Seq(lbdaRef)))
+              if prePrint(dc)=>
 
               val tgtReplSym = replacements(tgtSym)
               val tgtReplRef = core.ValRef(tgtReplSym)
@@ -402,12 +407,12 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
               val blockRefDef = valRefAndDef(blockSym, blockVDrhs)
               replacements += (lhs -> blockSym)
 
-              postPrint(blockRefDef._2)
+              //postPrint(blockRefDef._2)
 
               blockRefDef._2
 
-            case core.DefCall
-              (_, Ops.cross, Seq(tpeA, tpeB), Seq(Seq(core.ValRef(lhsSym), core.ValRef(rhsSym)))) =>
+            case dc @ core.DefCall
+              (_, Ops.cross, Seq(tpeA, tpeB), Seq(Seq(core.ValRef(lhsSym), core.ValRef(rhsSym)))) if prePrint(dc) =>
 
 
               // =========== Labynode map to Left() ===========
@@ -607,12 +612,13 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
               val blockRefDef = valRefAndDef(blockSym, blockVDrhs)
               replacements += (lhs -> blockSym)
 
-              postPrint(blockRefDef._2)
+              //postPrint(blockRefDef._2)
 
               blockRefDef._2
 
             // fold1
-            case core.DefCall(_, DB$.fold1, targs @ Seq(tpeA, tpeB), Seq(Seq(core.ValRef(dbSym), alg))) =>
+            case dc @ core.DefCall(_, DB$.fold1, targs @ Seq(tpeA, tpeB), Seq(Seq(core.ValRef(dbSym), alg)))
+            if prePrint(dc) =>
 
               val dbReplSym = replacements(dbSym)
               val dbReplRef = core.ValRef(dbReplSym)
@@ -664,11 +670,12 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
               val blockRefDef = valRefAndDef(blockSym, blockVDrhs)
               replacements += (lhs -> blockSym)
 
-              postPrint(blockRefDef._2)
+              //postPrint(blockRefDef._2)
 
               blockRefDef._2
 
-            case core.DefCall (_, DB$.fold2, targs @ Seq(tpeA, tpeB), Seq(Seq(core.ValRef(dbSym), zero, init, plus))) =>
+            case dc @ core.DefCall
+              (_, DB$.fold2, targs @ Seq(tpeA, tpeB), Seq(Seq(core.ValRef(dbSym), zero, init, plus))) if prePrint(dc)=>
 
               val dbReplSym = replacements(dbSym)
               val dbReplRef = core.ValRef(dbReplSym)
@@ -720,12 +727,78 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
               val blockRefDef = valRefAndDef(blockSym, blockVDrhs)
               replacements += (lhs -> blockSym)
 
-              postPrint(blockRefDef._2)
+              //postPrint(blockRefDef._2)
 
               blockRefDef._2
 
-            case core.DefCall(_, DB$.fromDatabagWriteCSV, Seq(dbTpe),
-            Seq(Seq(core.ValRef(dbSym), core.ValRef(pathSym), core.ValRef(csvSym)))) =>
+
+            case dc @ core.DefCall
+              (_, Ops.foldGroup, Seq(tpeA, tpeB, tpeK),
+              Seq(Seq(core.ValRef(dbSym), extrRef @ core.ValRef(_), alg))) if prePrint(dc) =>
+
+              val dbSymRepl = replacements(dbSym)
+              val dbReplRef = core.ValRef(dbSymRepl)
+
+              // bagoperator
+              val bagOpVDrhs = core.DefCall(
+                Some(ScalaOps$.ref),
+                ScalaOps$.foldGroupAlgHelper,
+                Seq(tpeK, tpeA, tpeB), Seq(Seq(extrRef, alg))
+              )
+              val bagOpRefDef = valRefAndDef(owner, "foldGroupOp", bagOpVDrhs)
+
+              // partitioner
+              val targetPara = 1
+              val partVDrhs = core.Inst(
+                getTpe[Always0[Any]],
+                Seq(tpeA),
+                Seq(Seq(core.Lit(targetPara)))
+              )
+              val partRefDef = valRefAndDef(owner, "partitioner", partVDrhs)
+
+              val tpeOut = api.Type.apply(getTpe[Group[tpeK.type, tpeB.type]], Seq(tpeK, tpeB))
+              // typeinfo OUT
+              val typeInfoOUTRefDef = getTypeInfoForTypeRefDef(
+                owner,
+                tpeOut)
+
+              // ElementOrEventTypeInfo
+              val elementOrEventTypeInfoRefDef = getElementOrEventTypeInfoRefDef(owner, tpeOut, typeInfoOUTRefDef._1)
+
+              // LabyNode
+              val labyNodeRefDef = getLabyNodeRefDef(
+                owner,
+                (tpeA, tpeOut),
+                "foldGroup",
+                bagOpRefDef._1,
+                1,
+                partRefDef._1,
+                elementOrEventTypeInfoRefDef._1
+              )
+
+              // addInput
+              val addInputRefDef = getAddInputRefDef(owner, labyNodeRefDef._1, dbReplRef)
+
+              // setParallelism
+              val SetParallelismRefDef = getSetParallelismRefDef(owner, addInputRefDef._1, 1)
+
+              // put everything into a block
+              val blockVDrhs = core.Let(
+                Seq(bagOpRefDef._2, partRefDef._2, typeInfoOUTRefDef._2,
+                  elementOrEventTypeInfoRefDef._2, labyNodeRefDef._2, addInputRefDef._2, SetParallelismRefDef._2),
+                Seq(),
+                SetParallelismRefDef._1
+              )
+              val blockSym = newSymbol(owner, "setPrllzm", blockVDrhs)
+              val blockRefDef = valRefAndDef(blockSym, blockVDrhs)
+              replacements += (lhs -> blockSym)
+
+              //postPrint(blockRefDef._2)
+
+              blockRefDef._2
+
+            case dc @ core.DefCall(_, DB$.fromDatabagWriteCSV, Seq(dbTpe),
+            Seq(Seq(core.ValRef(dbSym), core.ValRef(pathSym), core.ValRef(csvSym)))) if prePrint(dc)=>
 
               val dbSymRepl = replacements(dbSym)
               val pathSymRepl = replacements(pathSym)
@@ -981,17 +1054,48 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
               val blockRefDef = valRefAndDef(blockSym, blockVDrhs)
               replacements += (lhs -> blockSym)
 
-              postPrint(blockRefDef._2)
+              //postPrint(blockRefDef._2)
 
               blockRefDef._2
 
             case _ => vd
           }
         }
+
+        case Attr.inh(vr @ core.ValRef(sym), _) =>
+          if (prePrint(vr) && replacements.keys.toList.contains(sym)) {
+            val nvr = core.ValRef(replacements(sym))
+            skip(nvr)
+            nvr
+          } else {
+            vr
+          }
+
       }._tree(tree)
 
-    postPrint(transOut)
-    transOut
+    // second traversal to correct block types
+    // Background: scala does not change block types if expression type changes
+    // (see internal/Trees.scala - Tree.copyAttrs)
+    val trans2 = api.TopDown.unsafe
+      .withOwner
+      .transformWith {
+        case Attr.inh(lb @ core.Let(valdefs, defdefs, expr), _) if lb.tpe != expr.tpe =>
+          val nlb = core.Let(valdefs, defdefs, expr)
+          nlb
+      }._tree(trans1)
+
+//    // add LabyNode.translateAll() and env.execute
+//    val fin = trans2 match {
+//      case core.Let(vals, defs, expr) => {
+//
+//
+//
+//      }
+//    }
+
+
+    postPrint(trans2)
+    trans2
   })
 
   def getTypeInfoForTypeRefDef(owner: u.Symbol, tpe: u.Type): (u.Ident, u.ValDef) = {
@@ -1069,6 +1173,7 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
     val flatMapDataBagHelper = op("flatMapDataBagHelper")
     val fold = op("fold")
     val foldAlgHelper = op("foldAlgHelper")
+    val foldGroupAlgHelper = op("foldGroupAlgHelper")
     val fromNothing = op("fromNothing")
     val fromSingSrcApply = op("fromSingSrcApply")
     val map = op("map")
@@ -1190,6 +1295,21 @@ object Memo {
     memoizeTypeInfo(implicitly[org.emmalanguage.api.Meta[org.apache.flink.api.java.tuple.Tuple2[Int, String]]],
       createTypeInformation)
     memoizeTypeInfo(implicitly[org.emmalanguage.api.Meta[org.emmalanguage.api.CSV]], createTypeInformation)
+    memoizeTypeInfo(
+      implicitly[org.emmalanguage.api.Meta[scala.util.Either[(String, Long),org.emmalanguage.io.csv.CSV]]],
+      createTypeInformation
+    )
+    memoizeTypeInfo(implicitly[org.emmalanguage.api.Meta[(String, Long)]], createTypeInformation)
+    memoizeTypeInfo(
+      implicitly[org.emmalanguage.api.Meta[org.emmalanguage.api.Group[String,Long]]],
+      createTypeInformation
+    )
+    memoizeTypeInfo(
+      implicitly[org.emmalanguage.api.Meta[
+      org.emmalanguage.labyrinth.operators.InputFormatWithInputSplit[String,org.apache.flink.core.fs.FileInputSplit]]
+      ],
+      createTypeInformation
+    )
   }
 
   def memoizeTypeInfo[T](implicit meta: org.emmalanguage.api.Meta[T], info: TypeInformation[T])

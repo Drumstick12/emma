@@ -39,16 +39,16 @@ trait LabyrinthCompilerBase extends Compiler {
   }
 
   def prePrint(t: u.Tree) : Boolean = {
-    print("\nprePrint: ")
-    print(t)
-    print("   type: ")
-    print(t.tpe)
-    t match {
-      case core.ValDef(lhs, rhs) =>
-        print("   isFun: ")
-        println(isFun(lhs))
-      case _ => ()
-    }
+//    print("\nprePrint: ")
+//    print(t)
+//    print("   type: ")
+//    print(t.tpe)
+//    t match {
+//      case core.ValDef(lhs, rhs) =>
+//        print("   isFun: ")
+//        println(isFun(lhs))
+//      case _ => ()
+//    }
     true
   }
 
@@ -57,15 +57,15 @@ trait LabyrinthCompilerBase extends Compiler {
     print(t)
     print("   type: ")
     println(t.tpe.widen)
-    t match {
-      case core.Let(vals, _, expr) =>
-        //        print("vals: ")
-        //        println(vals)
-        //        print(" expression: ")
-        //        println(expr)
-        ()
-      case _ => ()
-    }
+//    t match {
+//      case core.Let(vals, _, expr) =>
+//        //        print("vals: ")
+//        //        println(vals)
+//        //        print(" expression: ")
+//        //        println(expr)
+//        ()
+//      case _ => ()
+//    }
   }
 
   def countSeenRefs(t: u.Tree, m: scala.collection.mutable.Map[u.TermSymbol, u.TermSymbol]) : Int = {

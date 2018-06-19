@@ -23,6 +23,8 @@ import api.alg.Count
 import labyrinth._
 import labyrinth.operators._
 import labyrinth.partitioners._
+import org.emmalanguage.api.alg.Size
+import org.emmalanguage.api.backend.LocalOps
 
 import org.apache.flink.core.fs.FileInputSplit
 
@@ -771,6 +773,67 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
       }
 
       applyLabynization()(inp) shouldBe alphaEqTo(anfPipeline(exp))
+    }
+
+    "foldGroup" in {
+      val inp = reify {
+        val fun$m6: () => String = (() => {
+          val lbda$m1: String = c.input;
+          lbda$m1
+        });
+        val db$m1: org.emmalanguage.api.DataBag[String] = DB.singSrc[String](fun$m6);
+        val db$m2: org.emmalanguage.api.DataBag[String] = DB.fromSingSrcReadText(db$m1);
+        val f$m1: String => org.emmalanguage.api.DataBag[String] = ((line$m1: String) => {
+          val anf$m3: String = line$m1.toLowerCase();
+          val anf$m4: Array[String] = anf$m3.split("\\W+");
+          val anf$m5: scala.collection.mutable.WrappedArray[String] = Predef.wrapRefArray[String](anf$m4);
+          val anf$m6: org.emmalanguage.api.DataBag[String] = DataBag.apply[String](anf$m5);
+          val p$m1: String => Boolean = ((word$m2: String) => {
+            val anf$m7: Boolean = word$m2.!=("");
+            anf$m7
+          });
+          val filtered$m1: org.emmalanguage.api.DataBag[String] = anf$m6.withFilter(p$m1);
+          filtered$m1
+        });
+        val fmapped$m1: org.emmalanguage.api.DataBag[String] = db$m2.flatMap[String](f$m1);
+        val f$m2: String => String = ((word$m2: String) => {
+          word$m2
+        });
+        val words$m1: org.emmalanguage.api.DataBag[String] = fmapped$m1.map[String](f$m2);
+        val fun$m4: String => String = ((x$m1: String) => {
+          val anf$m11: String = Predef.identity[String](x$m1);
+          anf$m11
+        });
+        val anf$m12: org.emmalanguage.api.DataBag[org.emmalanguage.api.Group[String,Long]] =
+          LocalOps.foldGroup[String, Long, String](words$m1, fun$m4, Size);
+        val f$m3: org.emmalanguage.api.Group[String,Long] => (String, Long) =
+          ((group$m1: org.emmalanguage.api.Group[String,Long]) => {
+          val anf$m13: String = group$m1.key;
+          val anf$m15: Long = group$m1.values;
+          val anf$m16: (String, Long) = scala.Tuple2.apply[String, Long](anf$m13, anf$m15);
+          anf$m16
+        });
+        val counts: org.emmalanguage.api.DataBag[(String, Long)] = anf$m12.map[(String, Long)](f$m3);
+        val fun$m7: () => String = (() => {
+          val lbda$m2: String = c.output;
+          lbda$m2
+        });
+        val db$m3: org.emmalanguage.api.DataBag[String] = DB.singSrc[String](fun$m7);
+        val fun$m8: () => org.emmalanguage.io.csv.CSV = (() => {
+          val lbda$m3: org.emmalanguage.io.csv.CSV = c.csv;
+          lbda$m3
+        });
+        val db$m4: org.emmalanguage.api.DataBag[org.emmalanguage.api.CSV] =
+          DB.singSrc[org.emmalanguage.api.CSV](fun$m8);
+//        val db$m5: org.emmalanguage.api.DataBag[Unit] = DB.fromDatabagWriteCSV[(String, Long)](counts, db$m3, db$m4);
+        db$m4
+      }
+
+      val exp = reify {
+        val a = 1
+      }
+
+      applyOnlyLabynization()(inp) shouldBe alphaEqTo(anfPipeline(exp))
     }
 
     "read Text" in {
