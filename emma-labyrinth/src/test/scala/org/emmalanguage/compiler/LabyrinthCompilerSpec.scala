@@ -1119,7 +1119,7 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
   "control flow" - {
 
 
-    "with trivial body" - {
+    "with trivial body" in {
       val inp = reify {
         //        var i = 0
         //        while (i < 100) i += 1
@@ -1153,8 +1153,8 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
 
 
         LabyStatics.registerCustomSerializer
-        LabyStatics.setTerminalBbid(1)
-        LabyStatics.setKickoffSource(1)
+        LabyStatics.setTerminalBbid(3)
+        LabyStatics.setKickoffSource(0, 1)
 
         val n1 = new LabyNode[labyrinth.util.Nothing, Int](
           "fromNothing",
@@ -1224,6 +1224,8 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
         env.execute
 
       }
+
+      applyLabynization()(inp) shouldBe alphaEqTo(anfPipeline(exp))
     }
 
   }
