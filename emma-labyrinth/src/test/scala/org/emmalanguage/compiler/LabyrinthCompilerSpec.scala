@@ -25,6 +25,9 @@ import labyrinth.operators._
 import labyrinth.partitioners._
 import org.emmalanguage.api.alg.Size
 import org.emmalanguage.api.backend.LocalOps
+import org.emmalanguage.compiler.ir.DSCFAnnotations.loopBody
+import org.emmalanguage.compiler.ir.DSCFAnnotations.suffix
+import org.emmalanguage.compiler.ir.DSCFAnnotations.whileLoop
 
 import org.apache.flink.core.fs.FileInputSplit
 
@@ -808,11 +811,11 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
           LocalOps.foldGroup[String, Long, String](words$m1, fun$m4, Size);
         val f$m3: org.emmalanguage.api.Group[String,Long] => (String, Long) =
           ((group$m1: org.emmalanguage.api.Group[String,Long]) => {
-          val anf$m13: String = group$m1.key;
-          val anf$m15: Long = group$m1.values;
-          val anf$m16: (String, Long) = scala.Tuple2.apply[String, Long](anf$m13, anf$m15);
-          anf$m16
-        });
+            val anf$m13: String = group$m1.key;
+            val anf$m15: Long = group$m1.values;
+            val anf$m16: (String, Long) = scala.Tuple2.apply[String, Long](anf$m13, anf$m15);
+            anf$m16
+          });
         val counts: org.emmalanguage.api.DataBag[(String, Long)] = anf$m12.map[(String, Long)](f$m3);
         val fun$m7: () => String = (() => {
           val lbda$m2: String = c.output;
@@ -825,7 +828,7 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
         });
         val db$m4: org.emmalanguage.api.DataBag[org.emmalanguage.api.CSV] =
           DB.singSrc[org.emmalanguage.api.CSV](fun$m8);
-//        val db$m5: org.emmalanguage.api.DataBag[Unit] = DB.fromDatabagWriteCSV[(String, Long)](counts, db$m3, db$m4);
+        //        val db$m5: org.emmalanguage.api.DataBag[Unit] = DB.fromDatabagWriteCSV[(String, Long)](counts, db$m3, db$m4);
         db$m4
       }
 
@@ -997,6 +1000,91 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
 
       applyOnlyLabynization()(inp) shouldBe alphaEqTo(anfPipeline(exp))
 
+    }
+
+  }
+
+  "control flow" - {
+
+
+    "with trivial body" - {
+      val inp = reify {
+        //        var i = 0
+        //        while (i < 100) i += 1
+        //        println(i)
+
+        @whileLoop def while$1(i: Int): Unit = {
+          val x$1 = i < 100
+          @loopBody def body$1(): Unit = {
+            val i$3 = i + 1
+            while$1(i$3)
+          }
+          @suffix def suffix$1(): Unit = {
+            println(i)
+          }
+          if (x$1) body$1()
+          else suffix$1()
+        }
+        while$1(0)
+      }
+
+      val exp = reify {
+
+        // outer    -> 0
+        // while$1  -> 1
+        // body$1   -> 2
+        // suffix$1 -> 3
+
+        //todo: add kickoff and terminal:
+        // kickoff:  0
+        // terminal: 3
+
+        val i = LabyNode.phi[Int]("i", 1, new Always0[Int](1), null, ???)
+
+        val x$1 = new LabyNode[Int, java.lang.Boolean]("x$1", ScalaOps.singletonBagOperator(_ < 100), 1,
+          new Always0[Int](1), null, ???)
+          .addInput(i, true, false)
+
+        val i$3 = new LabyNode[Int, Int]("i$3", ScalaOps.singletonBagOperator(_ + 1), 1,
+          new Always0[Int](1), null, ???)
+          .addInput(i, false, true)
+
+        i.addInput(i$3, false, true)
+
+        val printlnNode = new LabyNode[Int, Unit](
+          "map",
+          ScalaOps.map( (i:Int) => println(i)),
+          3,
+          new Always0[Int](1),
+          null,
+          new ElementOrEventTypeInfo[Unit](Memo.typeInfoForType[Unit])
+        )
+          .addInput(i, false, true)
+
+        val ifCondNode = new LabyNode(
+          "ifCondNode",
+          new ConditionNode(  //[java.lang.Boolean, util.Unit]
+            Array(2, 1), //vigyazat!
+            Array(3)
+          ),
+          1,
+          new Always0[java.lang.Boolean](1), null, ???)
+          .addInput(x$1, true, false)
+
+        val n1 = new LabyNode[labyrinth.util.Nothing, Int](
+          "fromNothing",
+          ScalaOps.fromNothing(() => {val tmp = 0; tmp }),
+          0,
+          new Always0[labyrinth.util.Nothing](1),
+          null,
+          new ElementOrEventTypeInfo[Int](Memo.typeInfoForType[Int])
+        )
+
+        i.addInput(n1, false, false)
+
+        //todo: translate es execute
+
+      }
     }
 
   }
