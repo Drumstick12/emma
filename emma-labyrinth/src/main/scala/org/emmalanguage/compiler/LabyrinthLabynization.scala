@@ -1366,6 +1366,7 @@ object Memo {
       ],
       createTypeInformation
     )
+    memoizeTypeInfo(implicitly[org.emmalanguage.api.Meta[labyrinth.util.Unit]], createTypeInformation)
   }
 
   def memoizeTypeInfo[T](implicit meta: org.emmalanguage.api.Meta[T], info: TypeInformation[T])

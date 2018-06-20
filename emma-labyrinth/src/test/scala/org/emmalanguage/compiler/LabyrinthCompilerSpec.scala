@@ -29,6 +29,7 @@ import org.emmalanguage.compiler.ir.DSCFAnnotations.loopBody
 import org.emmalanguage.compiler.ir.DSCFAnnotations.suffix
 import org.emmalanguage.compiler.ir.DSCFAnnotations.whileLoop
 
+import org.apache.flink.api.java.typeutils.PojoTypeInfo
 import org.apache.flink.core.fs.FileInputSplit
 
 //import org.apache.flink.api.scala._
@@ -45,6 +46,8 @@ class TestInt(var v: Int) {
 class LabyrinthCompilerSpec extends BaseCompilerSpec
   with LabyrinthCompilerAware
   with LabyrinthAware {
+
+  //implicit val env = defaultFlinkStreamEnv
 
   case class Config
   (
@@ -421,7 +424,7 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
     }
   }
 
-  implicit val emptyExecutionConfig = new ExecutionConfig
+  implicit val defaultEnv = defaultFlinkStreamEnv
 
   "labynization" - {
 
@@ -1039,14 +1042,46 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
         // kickoff:  0
         // terminal: 3
 
-        val i = LabyNode.phi[Int]("i", 1, new Always0[Int](1), null, ???)
 
-        val x$1 = new LabyNode[Int, java.lang.Boolean]("x$1", ScalaOps.singletonBagOperator(_ < 100), 1,
-          new Always0[Int](1), null, ???)
+        val env = implicitly[org.apache.flink.streaming.api.scala.StreamExecutionEnvironment]
+        LabyStatics.registerCustomSerializer
+        LabyStatics.setTerminalBbid(3)
+        LabyStatics.setKickoffSource(0, 1)
+
+        val n1 = new LabyNode[labyrinth.util.Nothing, Int](
+          "fromNothing",
+          ScalaOps.fromNothing(() => {val tmp = 0; tmp }),
+          0,
+          new Always0[labyrinth.util.Nothing](1),
+          null,
+          new ElementOrEventTypeInfo[Int](Memo.typeInfoForType[Int])
+        )
+
+        val i = LabyNode.phi[Int](
+          "i",
+          1,
+          new Always0[Int](1),
+          null,
+          new ElementOrEventTypeInfo[Int](Memo.typeInfoForType[Int])
+        )
+
+        val x$1 = new LabyNode[Int, java.lang.Boolean](
+          "x$1",
+          ScalaOps.singletonBagOperator(_ < 100),
+          1,
+          new Always0[Int](1),
+          null,
+          new ElementOrEventTypeInfo[java.lang.Boolean](Memo.typeInfoForType[java.lang.Boolean])
+        )
           .addInput(i, true, false)
 
-        val i$3 = new LabyNode[Int, Int]("i$3", ScalaOps.singletonBagOperator(_ + 1), 1,
-          new Always0[Int](1), null, ???)
+        val i$3 = new LabyNode[Int, Int](
+          "i$3",
+          ScalaOps.singletonBagOperator(_ + 1),
+          2,
+          new Always0[Int](1), null,
+          new ElementOrEventTypeInfo[Int](Memo.typeInfoForType[Int])
+        )
           .addInput(i, false, true)
 
         i.addInput(i$3, false, true)
@@ -1068,21 +1103,16 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
             Array(3)
           ),
           1,
-          new Always0[java.lang.Boolean](1), null, ???)
-          .addInput(x$1, true, false)
-
-        val n1 = new LabyNode[labyrinth.util.Nothing, Int](
-          "fromNothing",
-          ScalaOps.fromNothing(() => {val tmp = 0; tmp }),
-          0,
-          new Always0[labyrinth.util.Nothing](1),
+          new Always0[java.lang.Boolean](1),
           null,
-          new ElementOrEventTypeInfo[Int](Memo.typeInfoForType[Int])
+          new ElementOrEventTypeInfo[labyrinth.util.Unit](Memo.typeInfoForType[labyrinth.util.Unit])
         )
+          .addInput(x$1, true, false)
 
         i.addInput(n1, false, false)
 
-        //todo: translate es execute
+        LabyStatics.translateAll
+        env.execute
 
       }
     }
