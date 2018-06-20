@@ -41,10 +41,9 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
     val defs = scala.collection.mutable.Map[u.TermSymbol, u.ValDef]()
 
     println("___")
-    println("XXXXXXXXXXXXXXXXXXXXXXXX1")
     println("==0tree Labynization==")
     println(tree)
-    println("XXXXXXXXXXXXXXXXXXXXXXXX1")
+    println("--0tree END--")
 
     // first traversal does the labyrinth labynization. second for block type correction.
     val trans1 = api.TopDown.unsafe
@@ -1118,7 +1117,7 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
         )
         val envImplDCRefDef = valRefAndDef(owner, "implEnv", envImplDC)
 
-        val execDC = core.DefCall(Some(envImplDCRefDef._1), StreamExecutionEnvironment$.execute, Seq(), Seq() )
+        val execDC = core.DefCall(Some(envImplDCRefDef._1), StreamExecutionEnvironment$.execute, Seq(), Seq(Seq()))
         val execDCRefDef = valRefAndDef(owner, "envExecute", execDC)
 
         val newVals = Seq(customSerDCRefDef._2, termIdDCRefDef._2, kickOffWorldCup2018SourceDCRefDef._2) ++
@@ -1259,7 +1258,7 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
   object StreamExecutionEnvironment$ extends ClassAPI {
     lazy val sym = api.Sym[org.apache.flink.streaming.api.scala.StreamExecutionEnvironment].asClass
 
-    val execute = op("execute")
+    val execute = op("execute", List(0))
 
     override def ops = Set()
   }

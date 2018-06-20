@@ -23,6 +23,8 @@ trait LabyrinthCompiler
   extends LabyrinthNormalization
     with LabyrinthLabynization {
 
+  override lazy val implicitTypes: Set[u.Type] = API.implicitTypes ++ //todo: like in FlinkCompiler.FlinkAPI
+    Seq(api.Type[org.apache.flink.streaming.api.scala.StreamExecutionEnvironment])
 
   def transformations(implicit cfg: Config): Seq[TreeTransform] = Seq(
     // lifting

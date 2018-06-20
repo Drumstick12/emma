@@ -29,8 +29,9 @@ import org.emmalanguage.compiler.ir.DSCFAnnotations.loopBody
 import org.emmalanguage.compiler.ir.DSCFAnnotations.suffix
 import org.emmalanguage.compiler.ir.DSCFAnnotations.whileLoop
 
-import org.apache.flink.api.java.typeutils.PojoTypeInfo
 import org.apache.flink.core.fs.FileInputSplit
+
+import java.util.UUID
 
 //import org.apache.flink.api.scala._
 import org.apache.flink.api.common.ExecutionConfig
@@ -69,6 +70,25 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
   import compiler._
   import u.reify
 
+  protected override def wrapInClass(tree: u.Tree): u.Tree = {
+    import u.Quasiquote
+
+    val Cls = api.TypeName(UUID.randomUUID().toString)
+    val run = api.TermName(RuntimeCompiler.default.runMethod)
+    val prs = api.Tree.closure(tree).map { sym =>
+      val x = sym.name
+      val T = sym.info
+      q"val $x: $T"
+    }
+
+    q"""
+    class $Cls {
+      def $run(..$prs)(implicit flink: ${api.Type[org.apache.flink.streaming.api.scala.StreamExecutionEnvironment]}) =
+        $tree
+    }
+    """
+  }
+
   def withBackendContext[T](f: Env => T): T =
     withDefaultFlinkStreamEnv(f)
 
@@ -96,7 +116,8 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
       labyrinthNormalize.timed,
       Core.unnest,
       labyrinthLabynize.timed,
-      Core.unnest
+      Core.unnest//,
+      //addContext
     ).compose(_.tree)
   }
 
@@ -442,7 +463,14 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
       }
 
       val exp = reify {
+        LabyStatics.registerCustomSerializer
+        LabyStatics.setTerminalBbid(1)
+        LabyStatics.setKickoffSource(1)
         val a = () => 1
+        LabyStatics.translateAll
+        val env = implicitly[org.apache.flink.streaming.api.scala.StreamExecutionEnvironment]
+        val exec = env.execute
+        exec
       }
 
       applyLabynization()(inp) shouldBe alphaEqTo(anfPipeline(exp))
@@ -454,6 +482,10 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
       }
 
       val exp = reify {
+
+        LabyStatics.registerCustomSerializer
+        LabyStatics.setTerminalBbid(1)
+        LabyStatics.setKickoffSource(1)
         val a = new LabyNode[labyrinth.util.Nothing, Int](
           "fromNothing",
           ScalaOps.fromNothing[Int]( () => { val tmp = 1; tmp } ),
@@ -463,6 +495,11 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
           new ElementOrEventTypeInfo[Int](Memo.typeInfoForType[Int])
         )
           .setParallelism(1)
+
+
+        LabyStatics.translateAll
+        val env = implicitly[org.apache.flink.streaming.api.scala.StreamExecutionEnvironment]
+        env.execute
       }
 
       applyLabynization()(inp) shouldBe alphaEqTo(anfPipeline(exp))
@@ -475,6 +512,10 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
       }
 
       val exp = reify {
+
+        LabyStatics.registerCustomSerializer
+        LabyStatics.setTerminalBbid(1)
+        LabyStatics.setKickoffSource(1)
         val n1 = new LabyNode[labyrinth.util.Nothing, Seq[Int]](
           "fromNothing",
           ScalaOps.fromNothing[Seq[Int]](() => {
@@ -497,6 +538,11 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
         )
           .addInput(n1, true, false)
           .setParallelism(1)
+
+
+        LabyStatics.translateAll
+        val env = implicitly[org.apache.flink.streaming.api.scala.StreamExecutionEnvironment]
+        env.execute
       }
 
       applyLabynization()(inp) shouldBe alphaEqTo(anfPipeline(exp))
@@ -510,6 +556,11 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
       }
 
       val exp = reify {
+
+        LabyStatics.registerCustomSerializer
+        LabyStatics.setTerminalBbid(1)
+        LabyStatics.setKickoffSource(1)
+
         val n1 = new LabyNode[labyrinth.util.Nothing, Seq[Int]](
           "fromNothing",
           ScalaOps.fromNothing[Seq[Int]](() => {
@@ -543,6 +594,10 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
         )
           .addInput(n2, true, false)
           .setParallelism(1)
+
+        LabyStatics.translateAll
+        val env = implicitly[org.apache.flink.streaming.api.scala.StreamExecutionEnvironment]
+        env.execute
       }
 
       applyLabynization()(inp) shouldBe alphaEqTo(anfPipeline(exp))
@@ -556,6 +611,11 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
       }
 
       val exp = reify {
+
+        LabyStatics.registerCustomSerializer
+        LabyStatics.setTerminalBbid(1)
+        LabyStatics.setKickoffSource(1)
+
         val n1 = new LabyNode[labyrinth.util.Nothing, Seq[Int]](
           "fromNothing",
           ScalaOps.fromNothing[Seq[Int]](() => {
@@ -590,6 +650,10 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
         )
           .addInput(n2, true, false)
           .setParallelism(1)
+
+        LabyStatics.translateAll
+        val env = implicitly[org.apache.flink.streaming.api.scala.StreamExecutionEnvironment]
+        env.execute
       }
     }
 
@@ -601,6 +665,11 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
       }
 
       val exp = reify {
+
+        LabyStatics.registerCustomSerializer
+        LabyStatics.setTerminalBbid(1)
+        LabyStatics.setKickoffSource(1)
+
 
         val n1_1 = new LabyNode[labyrinth.util.Nothing, Seq[Int]](
           "fromNothing",
@@ -682,6 +751,10 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
           .addInput(n2_3, true, false)
           .setParallelism(1)
 
+        LabyStatics.translateAll
+        val env = implicitly[org.apache.flink.streaming.api.scala.StreamExecutionEnvironment]
+        env.execute
+
       }
       applyLabynization()(inp) shouldBe alphaEqTo(anfPipeline(exp))
     }
@@ -695,6 +768,11 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
       }
 
       val exp = reify {
+
+        LabyStatics.registerCustomSerializer
+        LabyStatics.setTerminalBbid(1)
+        LabyStatics.setKickoffSource(1)
+
         val n1 = new LabyNode[labyrinth.util.Nothing, Seq[Int]](
           "fromNothing",
           ScalaOps.fromNothing[Seq[Int]](() => {
@@ -730,6 +808,10 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
         )
           .addInput(n2, true, false)
           .setParallelism(1)
+
+        LabyStatics.translateAll
+        val env = implicitly[org.apache.flink.streaming.api.scala.StreamExecutionEnvironment]
+        env.execute
       }
 
       applyLabynization()(inp) shouldBe alphaEqTo(anfPipeline(exp))
@@ -743,6 +825,11 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
       }
 
       val exp = reify {
+
+        LabyStatics.registerCustomSerializer
+        LabyStatics.setTerminalBbid(1)
+        LabyStatics.setKickoffSource(1)
+
         val n1 = new LabyNode[labyrinth.util.Nothing, Seq[String]](
           "fromNothing",
           ScalaOps.fromNothing[Seq[String]](() => {
@@ -776,71 +863,75 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
         )
           .addInput(n2, true, false)
           .setParallelism(1)
+
+        LabyStatics.translateAll
+        val env = implicitly[org.apache.flink.streaming.api.scala.StreamExecutionEnvironment]
+        env.execute
       }
 
       applyLabynization()(inp) shouldBe alphaEqTo(anfPipeline(exp))
     }
 
-    "foldGroup" in {
-      val inp = reify {
-        val fun$m6: () => String = (() => {
-          val lbda$m1: String = c.input;
-          lbda$m1
-        });
-        val db$m1: org.emmalanguage.api.DataBag[String] = DB.singSrc[String](fun$m6);
-        val db$m2: org.emmalanguage.api.DataBag[String] = DB.fromSingSrcReadText(db$m1);
-        val f$m1: String => org.emmalanguage.api.DataBag[String] = ((line$m1: String) => {
-          val anf$m3: String = line$m1.toLowerCase();
-          val anf$m4: Array[String] = anf$m3.split("\\W+");
-          val anf$m5: scala.collection.mutable.WrappedArray[String] = Predef.wrapRefArray[String](anf$m4);
-          val anf$m6: org.emmalanguage.api.DataBag[String] = DataBag.apply[String](anf$m5);
-          val p$m1: String => Boolean = ((word$m2: String) => {
-            val anf$m7: Boolean = word$m2.!=("");
-            anf$m7
-          });
-          val filtered$m1: org.emmalanguage.api.DataBag[String] = anf$m6.withFilter(p$m1);
-          filtered$m1
-        });
-        val fmapped$m1: org.emmalanguage.api.DataBag[String] = db$m2.flatMap[String](f$m1);
-        val f$m2: String => String = ((word$m2: String) => {
-          word$m2
-        });
-        val words$m1: org.emmalanguage.api.DataBag[String] = fmapped$m1.map[String](f$m2);
-        val fun$m4: String => String = ((x$m1: String) => {
-          val anf$m11: String = Predef.identity[String](x$m1);
-          anf$m11
-        });
-        val anf$m12: org.emmalanguage.api.DataBag[org.emmalanguage.api.Group[String,Long]] =
-          LocalOps.foldGroup[String, Long, String](words$m1, fun$m4, Size);
-        val f$m3: org.emmalanguage.api.Group[String,Long] => (String, Long) =
-          ((group$m1: org.emmalanguage.api.Group[String,Long]) => {
-            val anf$m13: String = group$m1.key;
-            val anf$m15: Long = group$m1.values;
-            val anf$m16: (String, Long) = scala.Tuple2.apply[String, Long](anf$m13, anf$m15);
-            anf$m16
-          });
-        val counts: org.emmalanguage.api.DataBag[(String, Long)] = anf$m12.map[(String, Long)](f$m3);
-        val fun$m7: () => String = (() => {
-          val lbda$m2: String = c.output;
-          lbda$m2
-        });
-        val db$m3: org.emmalanguage.api.DataBag[String] = DB.singSrc[String](fun$m7);
-        val fun$m8: () => org.emmalanguage.io.csv.CSV = (() => {
-          val lbda$m3: org.emmalanguage.io.csv.CSV = c.csv;
-          lbda$m3
-        });
-        val db$m4: org.emmalanguage.api.DataBag[org.emmalanguage.api.CSV] =
-          DB.singSrc[org.emmalanguage.api.CSV](fun$m8);
-        //        val db$m5: org.emmalanguage.api.DataBag[Unit] = DB.fromDatabagWriteCSV[(String, Long)](counts, db$m3, db$m4);
-        db$m4
-      }
-
-      val exp = reify {
-        val a = 1
-      }
-
-      applyOnlyLabynization()(inp) shouldBe alphaEqTo(anfPipeline(exp))
-    }
+    //    "foldGroup" in {
+    //      val inp = reify {
+    //        val fun$m6: () => String = (() => {
+    //          val lbda$m1: String = c.input;
+    //          lbda$m1
+    //        });
+    //        val db$m1: org.emmalanguage.api.DataBag[String] = DB.singSrc[String](fun$m6);
+    //        val db$m2: org.emmalanguage.api.DataBag[String] = DB.fromSingSrcReadText(db$m1);
+    //        val f$m1: String => org.emmalanguage.api.DataBag[String] = ((line$m1: String) => {
+    //          val anf$m3: String = line$m1.toLowerCase();
+    //          val anf$m4: Array[String] = anf$m3.split("\\W+");
+    //          val anf$m5: scala.collection.mutable.WrappedArray[String] = Predef.wrapRefArray[String](anf$m4);
+    //          val anf$m6: org.emmalanguage.api.DataBag[String] = DataBag.apply[String](anf$m5);
+    //          val p$m1: String => Boolean = ((word$m2: String) => {
+    //            val anf$m7: Boolean = word$m2.!=("");
+    //            anf$m7
+    //          });
+    //          val filtered$m1: org.emmalanguage.api.DataBag[String] = anf$m6.withFilter(p$m1);
+    //          filtered$m1
+    //        });
+    //        val fmapped$m1: org.emmalanguage.api.DataBag[String] = db$m2.flatMap[String](f$m1);
+    //        val f$m2: String => String = ((word$m2: String) => {
+    //          word$m2
+    //        });
+    //        val words$m1: org.emmalanguage.api.DataBag[String] = fmapped$m1.map[String](f$m2);
+    //        val fun$m4: String => String = ((x$m1: String) => {
+    //          val anf$m11: String = Predef.identity[String](x$m1);
+    //          anf$m11
+    //        });
+    //        val anf$m12: org.emmalanguage.api.DataBag[org.emmalanguage.api.Group[String,Long]] =
+    //          LocalOps.foldGroup[String, Long, String](words$m1, fun$m4, Size);
+    //        val f$m3: org.emmalanguage.api.Group[String,Long] => (String, Long) =
+    //          ((group$m1: org.emmalanguage.api.Group[String,Long]) => {
+    //            val anf$m13: String = group$m1.key;
+    //            val anf$m15: Long = group$m1.values;
+    //            val anf$m16: (String, Long) = scala.Tuple2.apply[String, Long](anf$m13, anf$m15);
+    //            anf$m16
+    //          });
+    //        val counts: org.emmalanguage.api.DataBag[(String, Long)] = anf$m12.map[(String, Long)](f$m3);
+    //        val fun$m7: () => String = (() => {
+    //          val lbda$m2: String = c.output;
+    //          lbda$m2
+    //        });
+    //        val db$m3: org.emmalanguage.api.DataBag[String] = DB.singSrc[String](fun$m7);
+    //        val fun$m8: () => org.emmalanguage.io.csv.CSV = (() => {
+    //          val lbda$m3: org.emmalanguage.io.csv.CSV = c.csv;
+    //          lbda$m3
+    //        });
+    //        val db$m4: org.emmalanguage.api.DataBag[org.emmalanguage.api.CSV] =
+    //          DB.singSrc[org.emmalanguage.api.CSV](fun$m8);
+    //        //        val db$m5: org.emmalanguage.api.DataBag[Unit] = DB.fromDatabagWriteCSV[(String, Long)](counts, db$m3, db$m4);
+    //        db$m4
+    //      }
+    //
+    //      val exp = reify {
+    //        val a = 1
+    //      }
+    //
+    //      applyOnlyLabynization()(inp) shouldBe alphaEqTo(anfPipeline(exp))
+    //    }
 
     "read Text" in {
       val inp = reify {
@@ -849,6 +940,11 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
       }
 
       val exp = reify {
+
+        LabyStatics.registerCustomSerializer
+        LabyStatics.setTerminalBbid(1)
+        LabyStatics.setKickoffSource(1)
+
         val n1 = new LabyNode[labyrinth.util.Nothing, String](
           "fromNothing",
           ScalaOps.fromNothing[String](() => {
@@ -884,6 +980,10 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
         )
           .addInput(n2, true, false)
           .setParallelism(1)
+
+        LabyStatics.translateAll
+        val env = implicitly[org.apache.flink.streaming.api.scala.StreamExecutionEnvironment]
+        env.execute
       }
 
       applyLabynization()(inp) shouldBe alphaEqTo(anfPipeline(exp))
@@ -902,6 +1002,11 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
       }
 
       val exp = reify {
+
+        LabyStatics.registerCustomSerializer
+        LabyStatics.setTerminalBbid(1)
+        LabyStatics.setKickoffSource(1)
+
         val nData = new LabyNode[labyrinth.util.Nothing, Seq[Int]](
           "fromNothing",
           ScalaOps.fromNothing[Seq[Int]](() => {
@@ -999,6 +1104,10 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
           .addInput(nToCsvString, true, false)
           .setParallelism(1)
 
+        LabyStatics.translateAll
+        val env = implicitly[org.apache.flink.streaming.api.scala.StreamExecutionEnvironment]
+        env.execute
+
       }
 
       applyOnlyLabynization()(inp) shouldBe alphaEqTo(anfPipeline(exp))
@@ -1043,10 +1152,9 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
         // terminal: 3
 
 
-        val env = implicitly[org.apache.flink.streaming.api.scala.StreamExecutionEnvironment]
         LabyStatics.registerCustomSerializer
-        LabyStatics.setTerminalBbid(3)
-        LabyStatics.setKickoffSource(0, 1)
+        LabyStatics.setTerminalBbid(1)
+        LabyStatics.setKickoffSource(1)
 
         val n1 = new LabyNode[labyrinth.util.Nothing, Int](
           "fromNothing",
@@ -1112,6 +1220,7 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
         i.addInput(n1, false, false)
 
         LabyStatics.translateAll
+        val env = implicitly[org.apache.flink.streaming.api.scala.StreamExecutionEnvironment]
         env.execute
 
       }
