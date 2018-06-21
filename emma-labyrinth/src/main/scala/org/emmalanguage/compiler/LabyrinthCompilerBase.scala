@@ -69,12 +69,18 @@ trait LabyrinthCompilerBase extends Compiler {
   }
 
   def countSeenRefs(t: u.Tree, m: scala.collection.mutable.Map[u.TermSymbol, u.TermSymbol]) : Int = {
-    val refs = t.collect{ case vr @ core.ValRef(_) => vr.name }
+    val refs = t.collect{
+      case vr @ core.ValRef(_) => vr.name
+      case pr @ core.ParRef(_) => pr.name
+    }
     refs.foldLeft(0)((a,b) => a + (if (m.keys.toList.map(_.name).contains(b)) 1 else 0))
   }
 
   def refsSeen(t: u.Tree, m: scala.collection.mutable.Map[u.TermSymbol, u.TermSymbol]) : Boolean = {
-    val refNames = t.collect{ case vr @ core.ValRef(_) => vr }.map(_.name)
+    val refNames = t.collect{
+      case vr @ core.ValRef(_) => vr
+      case pr @ core.ParRef(_) => pr
+    }.map(_.name)
     val seenNames = m.keys.toSeq.map(_.name)
     refNames.foldLeft(false)((a,b) => a || seenNames.contains(b))
   }

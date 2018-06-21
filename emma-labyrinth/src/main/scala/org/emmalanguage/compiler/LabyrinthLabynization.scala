@@ -37,8 +37,29 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
   import UniverseImplicits._
 
   val labyrinthLabynize = TreeTransform("labyrinthLabynize", (tree: u.Tree) => {
+
+    val outerTermName = api.TermName.fresh("OUTER")
+
+    // wrap outer block into dummy defdef
+    val wraptree = tree match {
+      case lt @ core.Let(_,_,_) => {
+        val owner = enclosingOwner
+        val dd = core.DefDef(
+          api.DefSym(owner, outerTermName),
+          Seq(),
+          Seq(),
+          lt
+        )
+        val expr = api.Term.unit
+        core.Let(Seq(), Seq(dd), expr)
+      }
+    }
+
+    // get
+    val G = ControlFlow.cfg(wraptree)
+
     val replacements = scala.collection.mutable.Map[u.TermSymbol, u.TermSymbol]()
-    val defs = scala.collection.mutable.Map[u.TermSymbol, u.ValDef]()
+    val refToPhi = scala.collection.mutable.Map[u.TermSymbol, u.Ident]()
 
     println("___")
     println("==0tree Labynization==")
@@ -218,7 +239,7 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
 
             // fromSingSrc to LabyNode
             case dc @ core.DefCall(_, DB$.fromSingSrcApply, Seq(targ), Seq(Seq(core.ValRef(singSrcDBsym))))
-            if prePrint(dc) =>
+              if prePrint(dc) =>
 
               val singSrcDBReplSym = replacements(singSrcDBsym)
               val singSrcDBReplRef = core.ValRef(singSrcDBReplSym)
@@ -618,7 +639,7 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
 
             // fold1
             case dc @ core.DefCall(_, DB$.fold1, targs @ Seq(tpeA, tpeB), Seq(Seq(core.ValRef(dbSym), alg)))
-            if prePrint(dc) =>
+              if prePrint(dc) =>
 
               val dbReplSym = replacements(dbSym)
               val dbReplRef = core.ValRef(dbReplSym)
@@ -1071,6 +1092,76 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
             vr
           }
 
+        case Attr.inh(dd @ core.DefDef(_, _, pars, core.Let(valdefs, defdefs, expr)), owner::_) =>
+
+          val bbid = 1
+
+          // create a phinode for every parameter
+          val phiDefs = pars.map(
+            s => s.flatMap{
+              case pd @ core.ParDef(sym, _) =>
+
+                val tpeOut = sym.info.typeArgs.head
+
+                // phinode name
+                val phinodeName = sym.name + "Phi"
+                val nmLit = core.Lit(phinodeName)
+
+                // phinode bbid
+                val bbidLit = core.Lit(bbid)
+
+                // partitioner
+                val targetPara = 1
+                val part = core.Inst(
+                  getTpe[Always0[Any]],
+                  Seq(tpeOut),
+                  Seq(Seq(core.Lit(targetPara)))
+                )
+                val partPhiRefDef = valRefAndDef(owner, "partitioner", part)
+
+                // phinode inSer
+                val inserLit = core.Lit(null)
+
+                // typeinfo OUT
+                val typeInfoRefDef = getTypeInfoForTypeRefDef(
+                  owner,
+                  tpeOut
+                )
+                // ElementOrEventTypeInfo
+                val elementOrEventTypeInfoRefDef = getElementOrEventTypeInfoRefDef(
+                  owner,
+                  tpeOut,
+                  typeInfoRefDef._1
+                )
+
+                val phiDC = core.DefCall(
+                  Some(LabyStatics$.ref),
+                  LabyStatics$.phi,
+                  Seq(tpeOut),
+                  Seq(Seq(nmLit, bbidLit, partPhiRefDef._1, inserLit, elementOrEventTypeInfoRefDef._1))
+                )
+                val phiDCRefDef = valRefAndDef(owner, phinodeName, phiDC)
+
+                // save mapping from ParRef to PhiNod for later addInput
+                refToPhi += (sym -> phiDCRefDef._1)
+
+                // prepend valdefs to body letblock and return letblock
+                Seq(partPhiRefDef._2, typeInfoRefDef._2, elementOrEventTypeInfoRefDef._2, phiDCRefDef._2)
+            })
+
+          // prepend new defdefs to old defdefs
+          var nDefs = Seq[u.ValDef]()
+          phiDefs.foreach(s => nDefs = nDefs ++ s)
+          nDefs = nDefs ++ valdefs
+
+          val blockOut = core.Let(
+            nDefs,
+            defdefs,
+            expr
+          )
+
+          blockOut
+
       }._tree(tree)
 
     // second traversal to correct block types
@@ -1084,11 +1175,13 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
           nlb
       }._tree(trans1)
 
-    // add LabyNode.translateAll() and env.execute
-    val fin = trans2 match {
-      case core.Let(valdefs, defdefs, _) => {
-        assert(valdefs.nonEmpty, "Programm should have valdefs!")
-        val owner = valdefs.head.symbol.owner
+    // add Labyrinth statics
+    val labyStaticsTrans = trans2 match {
+      case core.Let(valdefs, _, _) => {
+        println
+        // assert(valdefs.nonEmpty, "Programm should have valdefs!")
+        // val owner = valdefs.head.symbol.owner
+        val owner = enclosingOwner
 
         val terminalBbid = 1
 
@@ -1124,13 +1217,13 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
           valdefs ++
           Seq(transAllDCRefDef._2, envImplDCRefDef._2, execDCRefDef._2)
 
-        core.Let(newVals, defdefs, execDCRefDef._1)
+        core.Let(newVals, Seq(), execDCRefDef._1)
       }
     }
 
     println("+++++++++++++++++++++++++++++++++++++++++++++++")
-    postPrint(fin)
-    fin
+    postPrint(labyStaticsTrans)
+    labyStaticsTrans
   })
 
   def getTypeInfoForTypeRefDef(owner: u.Symbol, tpe: u.Type): (u.Ident, u.ValDef) = {
@@ -1222,13 +1315,13 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
     override def ops = Set()
   }
 
-//  object FlinkScala$ extends ModuleAPI {
-//    lazy val sym = api.Sym[org.apache.flink.api.scala.`package`.type].asModule
-//
-//    val createTypeInformation = op("createTypeInformation")
-//
-//    override def ops = Set()
-//  }
+  //  object FlinkScala$ extends ModuleAPI {
+  //    lazy val sym = api.Sym[org.apache.flink.api.scala.`package`.type].asModule
+  //
+  //    val createTypeInformation = op("createTypeInformation")
+  //
+  //    override def ops = Set()
+  //  }
 
   object Memo$ extends ModuleAPI {
     lazy val sym = api.Sym[Memo.type].asModule
@@ -1286,6 +1379,7 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
   object LabyStatics$ extends ModuleAPI {
     lazy val sym = api.Sym[org.emmalanguage.labyrinth.operators.LabyStatics.type ].asModule
 
+    val phi = op("phi")
     val registerCustomSerializer = op("registerCustomSerializer")
     val setKickoffSource = op("setKickoffSource")
     val setTerminalBbid = op("setTerminalBbid")
@@ -1361,8 +1455,8 @@ object Memo {
     )
     memoizeTypeInfo(
       implicitly[org.emmalanguage.api.Meta[
-      org.emmalanguage.labyrinth.operators.InputFormatWithInputSplit[String,org.apache.flink.core.fs.FileInputSplit]]
-      ],
+        org.emmalanguage.labyrinth.operators.InputFormatWithInputSplit[String,org.apache.flink.core.fs.FileInputSplit]]
+        ],
       createTypeInformation
     )
     memoizeTypeInfo(implicitly[org.emmalanguage.api.Meta[labyrinth.util.Unit]], createTypeInformation)

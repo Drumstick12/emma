@@ -28,7 +28,10 @@ import org.emmalanguage.labyrinth.CFLConfig
 import org.emmalanguage.labyrinth.ElementOrEvent
 import org.emmalanguage.labyrinth.KickoffSource
 import org.emmalanguage.labyrinth.LabyNode
+import org.emmalanguage.labyrinth.partitioners.Partitioner
 
+import org.apache.flink.api.common.typeinfo.TypeInformation
+import org.apache.flink.api.common.typeutils.TypeSerializer
 import org.apache.flink.api.java.typeutils.PojoTypeInfo
 import org.apache.flink.core.fs.FileInputSplit
 import org.apache.flink.streaming.api.functions.sink.DiscardingSink
@@ -302,4 +305,8 @@ object LabyStatics {
   }
   def registerCustomSerializer: Unit = PojoTypeInfo.registerCustomSerializer(classOf[ElementOrEvent[_]],
     new ElementOrEvent.ElementOrEventSerializerFactory)
+
+  def phi[T](name: String, bbId: Int, inputPartitioner: Partitioner[T],
+    inSer: TypeSerializer[T], typeInfo: TypeInformation[ElementOrEvent[T]]): LabyNode[T, T] =
+    LabyNode.phi(name, bbId, inputPartitioner, inSer, typeInfo)
 }

@@ -277,11 +277,15 @@ trait LabyrinthNormalization extends LabyrinthCompilerBase {
               if prePrint(dc) && countSeenRefs(dc, replacements)==1 && !isDatabag(dc) =>
               val refs = dc.collect{
                 case vr @ core.ValRef(_) => vr
+                case pr @ core.ParRef(_) => pr
               }
               // here we have to use ref names to compare different refs refering to the same valdef
               val nonC = refs.filter(e => replacements.keys.toList.map(_.name).contains(e.name))
 
-              val x = nonC(0) match { case core.ValRef(sym) => core.ValRef(replacements(sym)) }
+              val x = nonC(0) match {
+                case core.ValRef(sym) => core.ValRef(replacements(sym))
+                case core.ParRef(sym) => core.ParRef(replacements(sym))
+              }
 
               val lbdaSym = api.ParSym(owner, api.TermName.fresh("t"), nonC(0).tpe.widen)
               val lbdaRef = core.ParRef(lbdaSym)
@@ -293,6 +297,7 @@ trait LabyrinthNormalization extends LabyrinthCompilerBase {
 
               val lmbdaRhsDC = api.TopDown.transform{
                 case v @ core.ValRef(_) => if (m.keys.toList.contains(v)) m(v) else v
+                case p @ core.ParRef(_) => if (m.keys.toList.contains(p)) m(p) else p
               }._tree(dc)
               val lmbdaRhsDCRefDef = valRefAndDef(owner, "lbdaRhs", lmbdaRhsDC)
               skip(lmbdaRhsDCRefDef._2)
@@ -322,11 +327,13 @@ trait LabyrinthNormalization extends LabyrinthCompilerBase {
               if prePrint(dc) && countSeenRefs(dc, replacements)==2 && !isDatabag(dc)  =>
               val refs = dc.collect{
                 case vr @ core.ValRef(_) => vr
+                case pr @ core.ParRef(_) => pr
               }
               // here we have to use ref names to compare different refs refering to the same valdef
               val nonC = refs.filter(e => replacements.keys.toList.map(_.name).contains(e.name))
               val nonCReplRefs = nonC.map {
                 case core.ValRef(sym) => core.ValRef(replacements(sym))
+                case core.ParRef(sym) => core.ParRef(replacements(sym))
               }
 
               val targsRepls = nonC.map(_.tpe.widen)
@@ -359,6 +366,7 @@ trait LabyrinthNormalization extends LabyrinthCompilerBase {
 
               val lmbdaRhsDC = api.TopDown.transform{
                 case v @ core.ValRef(_) => if (m.keys.toList.contains(v)) m(v) else v
+                case p @ core.ParRef(_) => if (m.keys.toList.contains(p)) m(p) else p
               }._tree(dc)
               val lmbdaRhsDCRefDef = valRefAndDef(owner, "lbdaRhs", lmbdaRhsDC)
               skip(lmbdaRhsDCRefDef._2)
@@ -392,10 +400,12 @@ trait LabyrinthNormalization extends LabyrinthCompilerBase {
               if prePrint(dc) && countSeenRefs(dc, replacements)==3 && !isDatabag(dc)  =>
               val refs = dc.collect{
                 case vr @ core.ValRef(_) => vr
+                case pr @ core.ParRef(_) => pr
               }
               val nonC = refs.filter(e => replacements.keys.toList.map(_.name).contains(e.name))
               val nonCReplRefs = nonC.map {
                 case core.ValRef(sym) => core.ValRef(replacements(sym))
+                case core.ParRef(sym) => core.ParRef(replacements(sym))
               }
 
               val targsRepls = nonC.map(_.tpe.widen)
@@ -435,6 +445,7 @@ trait LabyrinthNormalization extends LabyrinthCompilerBase {
 
               val lmbdaRhsDC = api.TopDown.transform{
                 case v @ core.ValRef(_) => if (m.keys.toList.contains(v)) m(v) else v
+                case p @ core.ParRef(_) => if (m.keys.toList.contains(p)) m(p) else p
               }._tree(dc)
               val lmbdaRhsDCRefDef = valRefAndDef(owner, "lbdaRhs", lmbdaRhsDC)
               skip(lmbdaRhsDCRefDef._2)
@@ -479,7 +490,7 @@ trait LabyrinthNormalization extends LabyrinthCompilerBase {
             && !refsSeen(rhs, replacements) && !isDatabag(rhs) && !isFun(lhs) && !isFun(owner) && !isAlg(rhs) =>
 
           // create lambda () => rhs
-          val rhsSym = newSymbol(owner, "lbda", rhs)
+          val rhsSym = newSymbol(owner, "tmp", rhs)
           val rhsRefDef = valRefAndDef(rhsSym, rhs)
           skip(rhsRefDef._2)
           val lRhs = core.Let(Seq(rhsRefDef._2), Seq(), rhsRefDef._1)
@@ -518,12 +529,55 @@ trait LabyrinthNormalization extends LabyrinthCompilerBase {
             vr
           }
 
+        // if we encounter a ParDef whose type is not DataBag (e.g. Int), databagify (e.g. DataBag[Int])
+        case Attr.inh(pd @ core.ParDef(ts, _), owner::_)
+          if !(ts.info =:= API.DataBag.tpe) && !meta(pd).all.all.contains(SkipTraversal) && !isFun(owner) =>
+          val nts = api.ParSym(
+            owner,
+            api.TermName.fresh("arg"),
+            api.Type.apply(API.DataBag.tpe.typeConstructor, Seq(ts.info))
+          )
+          val npd = core.ParDef(nts)
+          skip(npd)
+          replacements += (ts -> nts)
+          npd
+
+        // if we encounter a letblock whose expr is a DefCall with literals as arguments, create valdefs for literals,
+        // prepend to valdefs of the letblock and replace DefCall args with references
+        case Attr.inh(lb @ core.Let(valDefs, defDefs, core.DefCall(tgt, ms, targs, args)), owner :: _)
+          if argsContainLiterals(args) =>
+
+          println(lb)
+
+          var tmpDefs = Seq[u.ValDef]()
+          val argsRepl = args.map{
+            sl => sl.map {
+              case lt@core.Lit(_) => {
+                val defSym = newSymbol(owner, "anfLaby", lt)
+                val ltRefDef = valRefAndDef(defSym, lt)
+                tmpDefs = tmpDefs ++ Seq(ltRefDef._2)
+                ltRefDef._1
+              }
+              case (t: u.Tree) => t
+            }
+          }
+
+          val dc = core.DefCall(tgt, ms, targs, argsRepl)
+
+          val letOut = core.Let(
+            tmpDefs ++ valDefs,
+            defDefs,
+            dc
+          )
+
+          letOut
+
       }._tree(tree)
 
     // second traversal to correct block types
     // Background: scala does not change block types if expression type changes
     // (see internal/Trees.scala - Tree.copyAttrs)
-    val secondRun = api.TopDown.unsafe
+    val secondRun = api.BottomUp.unsafe
       .withOwner
       .transformWith {
         case Attr.inh(lb @ core.Let(valdefs, defdefs, expr), _) if lb.tpe != expr.tpe =>
@@ -535,4 +589,15 @@ trait LabyrinthNormalization extends LabyrinthCompilerBase {
     secondRun
 
   })
+
+  def argsContainLiterals(args: Seq[Seq[u.Tree]]): Boolean = {
+    var out = false
+    args.foreach{
+      sl => sl.foreach{
+        case core.Lit(_) => out = true
+        case (t: u.Tree) => t
+      }
+    }
+    out
+  }
 }

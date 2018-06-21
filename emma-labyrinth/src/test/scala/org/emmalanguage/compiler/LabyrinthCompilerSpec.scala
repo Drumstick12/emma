@@ -141,6 +141,19 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
 
   // actual tests
   "normalization" - {
+
+//    "defcall expression" in {
+//      val inp = reify {
+//        def p(arg: Int) = println(arg)
+//        p(1)
+//      }
+//      val exp = reify {
+//        val a = 1
+//      }
+//
+//      applyXfrm(labyrinthNormalize)(inp) shouldBe alphaEqTo(anfPipeline(exp))
+//    }
+
     "ValDef only" in {
       val inp = reify {
         val a = 1
@@ -1118,7 +1131,6 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
 
   "control flow" - {
 
-
     "with trivial body" in {
       val inp = reify {
         //        var i = 0
@@ -1147,7 +1159,6 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
         // body$1   -> 2
         // suffix$1 -> 3
 
-        //todo: add kickoff and terminal:
         // kickoff:  0
         // terminal: 3
 
@@ -1165,7 +1176,7 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
           new ElementOrEventTypeInfo[Int](Memo.typeInfoForType[Int])
         )
 
-        val i = LabyNode.phi[Int](
+        val iPhi = LabyStatics.phi[Int](
           "i",
           1,
           new Always0[Int](1),
@@ -1175,24 +1186,24 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
 
         val x$1 = new LabyNode[Int, java.lang.Boolean](
           "x$1",
-          ScalaOps.singletonBagOperator(_ < 100),
+          ScalaOps.map(_ < 100),
           1,
           new Always0[Int](1),
           null,
           new ElementOrEventTypeInfo[java.lang.Boolean](Memo.typeInfoForType[java.lang.Boolean])
         )
-          .addInput(i, true, false)
+          .addInput(iPhi, true, false)
 
         val i$3 = new LabyNode[Int, Int](
           "i$3",
-          ScalaOps.singletonBagOperator(_ + 1),
+          ScalaOps.map(_ + 1),
           2,
           new Always0[Int](1), null,
           new ElementOrEventTypeInfo[Int](Memo.typeInfoForType[Int])
         )
-          .addInput(i, false, true)
+          .addInput(iPhi, false, true)
 
-        i.addInput(i$3, false, true)
+        iPhi.addInput(i$3, false, true)
 
         val printlnNode = new LabyNode[Int, Unit](
           "map",
@@ -1202,7 +1213,7 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
           null,
           new ElementOrEventTypeInfo[Unit](Memo.typeInfoForType[Unit])
         )
-          .addInput(i, false, true)
+          .addInput(iPhi, false, true)
 
         val ifCondNode = new LabyNode(
           "ifCondNode",
@@ -1217,7 +1228,7 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
         )
           .addInput(x$1, true, false)
 
-        i.addInput(n1, false, false)
+        iPhi.addInput(n1, false, false)
 
         LabyStatics.translateAll
         val env = implicitly[org.apache.flink.streaming.api.scala.StreamExecutionEnvironment]
