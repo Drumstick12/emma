@@ -55,7 +55,7 @@ trait LabyrinthNormalization extends LabyrinthCompilerBase {
           rhs match {
             case core.ValRef(sym) if replacements.keys.toList.contains (sym) =>
               val nvr = core.ValRef(replacements(sym))
-              val ns = newSymbol(owner, lhs.name.toString, nvr)
+              val ns = newValSym(owner, lhs.name.toString, nvr)
               val nvd = core.ValDef(ns, nvr)
               skip(nvd)
               replacements += (lhs -> ns)
@@ -84,7 +84,7 @@ trait LabyrinthNormalization extends LabyrinthCompilerBase {
                   Seq(argReplRef.tpe.widen.typeArgs.head.typeArgs.head),
                   Seq(Seq(argReplRef))
                 )
-                val dbSym = newSymbol(owner, "db", dbRhs)
+                val dbSym = newValSym(owner, "db", dbRhs)
                 val db = core.ValDef(dbSym, dbRhs)
                 skip(db)
 
@@ -108,7 +108,7 @@ trait LabyrinthNormalization extends LabyrinthCompilerBase {
                   Seq(),
                   Seq(Seq(argReplRef))
                 )
-                val dbSym = newSymbol(owner, "db", dbRhs)
+                val dbSym = newValSym(owner, "db", dbRhs)
                 val db = core.ValDef(dbSym, dbRhs)
                 skip(db)
 
@@ -132,7 +132,7 @@ trait LabyrinthNormalization extends LabyrinthCompilerBase {
                   targs,
                   Seq(Seq(pathSymReplRef, formatSymReplRef))
                 )
-                val dbSym = newSymbol(owner, "db", dbRhs)
+                val dbSym = newValSym(owner, "db", dbRhs)
                 val db = core.ValDef(dbSym, dbRhs)
                 skip(db)
 
@@ -164,7 +164,7 @@ trait LabyrinthNormalization extends LabyrinthCompilerBase {
                   Seq(tgt.tpe.widen.typeArgs.head),
                   Seq(Seq(tgt, pathReplRef, csvReplRef))
                 )
-                val dbSym = newSymbol(owner, "db", dbRhs)
+                val dbSym = newValSym(owner, "db", dbRhs)
                 val db = core.ValDef(dbSym, dbRhs)
                 skip(db)
 
@@ -191,7 +191,7 @@ trait LabyrinthNormalization extends LabyrinthCompilerBase {
               val ndcRefDef = valRefAndDef(owner, "collect", ndc)
 
               val blockFinal = core.Let(Seq(ndcRefDef._2), Seq(), ndcRefDef._1)
-              val blockFinalSym = newSymbol(owner, "db", blockFinal)
+              val blockFinalSym = newValSym(owner, "db", blockFinal)
               val blockFinalRefDef = valRefAndDef(blockFinalSym, blockFinal)
               skip(blockFinalRefDef._2)
 
@@ -224,7 +224,7 @@ trait LabyrinthNormalization extends LabyrinthCompilerBase {
               val ndcRefDef = valRefAndDef(owner, "fold1", ndc)
 
               val blockFinal = core.Let(Seq(ndcRefDef._2), Seq(), ndcRefDef._1)
-              val blockFinalSym = newSymbol(owner, "db", blockFinal)
+              val blockFinalSym = newValSym(owner, "db", blockFinal)
               val blockFinalRefDef = valRefAndDef(blockFinalSym, blockFinal)
               skip(blockFinalRefDef._2)
 
@@ -263,7 +263,7 @@ trait LabyrinthNormalization extends LabyrinthCompilerBase {
               val ndcRefDef = valRefAndDef(owner, "fold2", ndc)
 
               val blockFinal = core.Let(Seq(ndcRefDef._2), Seq(), ndcRefDef._1)
-              val blockFinalSym = newSymbol(owner, "db", blockFinal)
+              val blockFinalSym = newValSym(owner, "db", blockFinal)
               val blockFinalRefDef = valRefAndDef(blockFinalSym, blockFinal)
               skip(blockFinalRefDef._2)
 
@@ -313,7 +313,7 @@ trait LabyrinthNormalization extends LabyrinthCompilerBase {
               skip(mapDCRefDef._2)
 
               val blockFinal = core.Let(Seq(lambdaRefDef._2, mapDCRefDef._2), Seq(), mapDCRefDef._1)
-              val blockFinalSym = newSymbol(owner, "db", blockFinal)
+              val blockFinalSym = newValSym(owner, "db", blockFinal)
               val blockFinalRefDef = valRefAndDef(blockFinalSym, blockFinal)
               skip(blockFinalRefDef._2)
 
@@ -377,7 +377,7 @@ trait LabyrinthNormalization extends LabyrinthCompilerBase {
               )
               val lambdaRefDef = valRefAndDef(owner, "lambda", lmbda)
 
-              val crossSym = newSymbol(owner, "cross", crossDc)
+              val crossSym = newValSym(owner, "cross", crossDc)
               val crossRefDef = valRefAndDef(crossSym, crossDc)
               skip(crossRefDef._2)
 
@@ -386,7 +386,7 @@ trait LabyrinthNormalization extends LabyrinthCompilerBase {
               skip(mapDCRefDef._2)
 
               val blockFinal = core.Let(Seq(crossRefDef._2, lambdaRefDef._2, mapDCRefDef._2), Seq(), mapDCRefDef._1)
-              val blockFinalSym = newSymbol(owner, "db", blockFinal)
+              val blockFinalSym = newValSym(owner, "db", blockFinal)
               val blockFinalRefDef = valRefAndDef(blockFinalSym, blockFinal)
               skip(blockFinalRefDef._2)
 
@@ -460,7 +460,7 @@ trait LabyrinthNormalization extends LabyrinthCompilerBase {
               )
               val lambdaRefDef = valRefAndDef(owner, "lambda", lmbda)
 
-              val crossSym = newSymbol(owner, "cross3", crossDc)
+              val crossSym = newValSym(owner, "cross3", crossDc)
               val crossRefDef = valRefAndDef(crossSym, crossDc)
               skip(crossRefDef._2)
 
@@ -469,7 +469,7 @@ trait LabyrinthNormalization extends LabyrinthCompilerBase {
               skip(mapDCRefDef._2)
 
               val blockFinal = core.Let(Seq(crossRefDef._2, lambdaRefDef._2, mapDCRefDef._2), Seq(), mapDCRefDef._1)
-              val blockFinalSym = newSymbol(owner, "db", blockFinal)
+              val blockFinalSym = newValSym(owner, "db", blockFinal)
               val blockFinalRefDef = valRefAndDef(blockFinalSym, blockFinal)
               skip(blockFinalRefDef._2)
 
@@ -490,22 +490,22 @@ trait LabyrinthNormalization extends LabyrinthCompilerBase {
             && !refsSeen(rhs, replacements) && !isDatabag(rhs) && !isFun(lhs) && !isFun(owner) && !isAlg(rhs) =>
 
           // create lambda () => rhs
-          val rhsSym = newSymbol(owner, "tmp", rhs)
+          val rhsSym = newValSym(owner, "tmp", rhs)
           val rhsRefDef = valRefAndDef(rhsSym, rhs)
           skip(rhsRefDef._2)
           val lRhs = core.Let(Seq(rhsRefDef._2), Seq(), rhsRefDef._1)
           val l = core.Lambda(Seq(), lRhs)
-          val lSym = newSymbol(owner, "fun", l)
+          val lSym = newValSym(owner, "fun", l)
           val lRefDef = valRefAndDef(lSym, l)
           skip(lRefDef._2)
 
           val dbRhsDC = core.DefCall(Some(DB$.ref), DB$.singSrc, Seq(rhs.tpe), Seq(Seq(lRefDef._1)))
-          val dbRhsDCSym = newSymbol(owner, "dbRhs", dbRhsDC)
+          val dbRhsDCSym = newValSym(owner, "dbRhs", dbRhsDC)
           val dbRhsDCRefDef = valRefAndDef(dbRhsDCSym, dbRhsDC)
           skip(dbRhsDCRefDef._1)
           skip(dbRhsDCRefDef._2)
           val dbRhs = core.Let(Seq(lRefDef._2, dbRhsDCRefDef._2), Seq(), dbRhsDCRefDef._1)
-          val dbSym = newSymbol(owner, "db", dbRhsDC)
+          val dbSym = newValSym(owner, "db", dbRhsDC)
           val db = core.ValDef(dbSym, dbRhs)
           skip(db)
 
@@ -553,7 +553,7 @@ trait LabyrinthNormalization extends LabyrinthCompilerBase {
           val argsRepl = args.map{
             sl => sl.map {
               case lt@core.Lit(_) => {
-                val defSym = newSymbol(owner, "anfLaby", lt)
+                val defSym = newValSym(owner, "anfLaby", lt)
                 val ltRefDef = valRefAndDef(defSym, lt)
                 tmpDefs = tmpDefs ++ Seq(ltRefDef._2)
                 ltRefDef._1

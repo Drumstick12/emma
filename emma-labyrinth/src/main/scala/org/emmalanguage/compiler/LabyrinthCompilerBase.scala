@@ -113,8 +113,12 @@ trait LabyrinthCompilerBase extends Compiler {
   def isFun(sym: u.TermSymbol) = api.Sym.funs(sym.info.dealias.widen.typeSymbol)
   def isFun(sym: u.Symbol) = api.Sym.funs(sym.info.dealias.widen.typeSymbol)
 
-  def newSymbol(own: u.Symbol, name: String, rhs: u.Tree): u.TermSymbol = {
+  def newValSym(own: u.Symbol, name: String, rhs: u.Tree): u.TermSymbol = {
     api.ValSym(own, api.TermName.fresh(name), rhs.tpe.widen)
+  }
+
+  def newParSym(own: u.Symbol, name: String, rhs: u.Tree): u.TermSymbol = {
+    api.ParSym(own, api.TermName.fresh(name), rhs.tpe.widen)
   }
 
   def valRefAndDef(own: u.Symbol, name: String, rhs: u.Tree): (u.Ident, u.ValDef) = {

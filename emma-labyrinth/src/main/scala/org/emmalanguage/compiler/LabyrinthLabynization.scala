@@ -36,7 +36,7 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
   import API._
   import UniverseImplicits._
 
-  val labyrinthLabynize = TreeTransform("labyrinthLabynize", (tree: u.Tree) => {
+  val labyrinthLabynize: TreeTransform = TreeTransform("labyrinthLabynize", (tree: u.Tree) => {
 
     val outerTermName = api.TermName.fresh("OUTER")
 
@@ -53,6 +53,7 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
         val expr = api.Term.unit
         core.Let(Seq(), Seq(dd), expr)
       }
+      case t: u.Tree => t
     }
 
     // get
@@ -178,7 +179,7 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
                 Seq(),
                 SetParallelismReadRefDef._1
               )
-              val blockSym = newSymbol(owner, "setPrllzm", blockVDrhs)
+              val blockSym = newValSym(owner, "setPrllzm", blockVDrhs)
               val blockRefDef = valRefAndDef(blockSym, blockVDrhs)
               replacements += (lhs -> blockSym)
 
@@ -229,7 +230,7 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
                 Seq(),
                 SetParallelismRefDef._1
               )
-              val blockSym = newSymbol(owner, "setPrllzm", blockVDrhs)
+              val blockSym = newValSym(owner, "setPrllzm", blockVDrhs)
               val blockRefDef = valRefAndDef(blockSym, blockVDrhs)
               replacements += (lhs -> blockSym)
 
@@ -294,7 +295,7 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
                 Seq(),
                 SetParallelismRefDef._1
               )
-              val blockSym = newSymbol(owner, "setPrllzm", blockVDrhs)
+              val blockSym = newValSym(owner, "setPrllzm", blockVDrhs)
               val blockRefDef = valRefAndDef(blockSym, blockVDrhs)
               replacements += (lhs -> blockSym)
 
@@ -302,7 +303,7 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
 
               blockRefDef._2
 
-            // map to LabyNode
+            // valref map to LabyNode
             case dc @ core.DefCall(Some(core.ValRef(tgtSym)), DataBag.map, Seq(outTpe), Seq(Seq(lbdaRef)))
               if prePrint(dc) =>
 
@@ -359,7 +360,72 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
                 Seq(),
                 SetParallelismRefDef._1
               )
-              val blockSym = newSymbol(owner, "setPrllzm", blockVDrhs)
+              val blockSym = newValSym(owner, "setPrllzm", blockVDrhs)
+              val blockRefDef = valRefAndDef(blockSym, blockVDrhs)
+              replacements += (lhs -> blockSym)
+
+              //postPrint(blockRefDef._2)
+
+              blockRefDef._2
+
+            // parref map to LabyNode
+            case dc @ core.DefCall(Some(core.ParRef(tgtSym)), DataBag.map, Seq(outTpe), Seq(Seq(lbdaRef)))
+              if prePrint(dc) =>
+
+              val tgtReplSym = replacements(tgtSym)
+              val tgtReplRef = core.ValRef(tgtReplSym)
+
+              val inTpe = tgtSym.info.typeArgs.head
+
+              // bagoperator
+              val bagOpVDrhs = core.DefCall(
+                Some(ScalaOps$.ref),
+                ScalaOps$.map,
+                Seq(inTpe, outTpe),
+                Seq(Seq(lbdaRef))
+              )
+              val bagOpRefDef = valRefAndDef(owner, "fromSingSrcApply", bagOpVDrhs)
+
+              // partitioner
+              val targetPara = 1
+              val partVDrhs = core.Inst(
+                getTpe[Always0[Any]],
+                Seq(inTpe),
+                Seq(Seq(core.Lit(targetPara)))
+              )
+              val partRefDef = valRefAndDef(owner, "partitioner", partVDrhs)
+
+              // typeinfo OUT
+              val typeInfoOUTRefDef = getTypeInfoForTypeRefDef(owner, outTpe)
+
+              // ElementOrEventTypeInfo
+              val elementOrEventTypeInfoRefDef = getElementOrEventTypeInfoRefDef(owner, outTpe, typeInfoOUTRefDef._1)
+
+              // LabyNode
+              val labyNodeRefDef = getLabyNodeRefDef(
+                owner,
+                (inTpe, outTpe),
+                "map",
+                bagOpRefDef._1,
+                1,
+                partRefDef._1,
+                elementOrEventTypeInfoRefDef._1
+              )
+
+              // addInput
+              val addInputRefDef = getAddInputRefDef(owner, labyNodeRefDef._1, tgtReplRef)
+
+              // setParallelism
+              val SetParallelismRefDef = getSetParallelismRefDef(owner, addInputRefDef._1, 1)
+
+              // put everything into a block
+              val blockVDrhs = core.Let(
+                Seq(bagOpRefDef._2, partRefDef._2, typeInfoOUTRefDef._2, elementOrEventTypeInfoRefDef._2,
+                  labyNodeRefDef._2, addInputRefDef._2, SetParallelismRefDef._2),
+                Seq(),
+                SetParallelismRefDef._1
+              )
+              val blockSym = newValSym(owner, "setPrllzm", blockVDrhs)
               val blockRefDef = valRefAndDef(blockSym, blockVDrhs)
               replacements += (lhs -> blockSym)
 
@@ -424,7 +490,137 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
                 Seq(),
                 SetParallelismRefDef._1
               )
-              val blockSym = newSymbol(owner, "setPrllzm", blockVDrhs)
+              val blockSym = newValSym(owner, "setPrllzm", blockVDrhs)
+              val blockRefDef = valRefAndDef(blockSym, blockVDrhs)
+              replacements += (lhs -> blockSym)
+
+              //postPrint(blockRefDef._2)
+
+              blockRefDef._2
+
+            // map to LabyNode
+            case dc @ core.DefCall(Some(core.ValRef(tgtSym)), DataBag.map, Seq(outTpe), Seq(Seq(lbdaRef)))
+              if prePrint(dc) =>
+
+              val tgtReplSym = replacements(tgtSym)
+              val tgtReplRef = core.ValRef(tgtReplSym)
+
+              val inTpe = tgtSym.info.typeArgs.head
+
+              // bagoperator
+              val bagOpVDrhs = core.DefCall(
+                Some(ScalaOps$.ref),
+                ScalaOps$.map,
+                Seq(inTpe, outTpe),
+                Seq(Seq(lbdaRef))
+              )
+              val bagOpRefDef = valRefAndDef(owner, "fromSingSrcApply", bagOpVDrhs)
+
+              // partitioner
+              val targetPara = 1
+              val partVDrhs = core.Inst(
+                getTpe[Always0[Any]],
+                Seq(inTpe),
+                Seq(Seq(core.Lit(targetPara)))
+              )
+              val partRefDef = valRefAndDef(owner, "partitioner", partVDrhs)
+
+              // typeinfo OUT
+              val typeInfoOUTRefDef = getTypeInfoForTypeRefDef(owner, outTpe)
+
+              // ElementOrEventTypeInfo
+              val elementOrEventTypeInfoRefDef = getElementOrEventTypeInfoRefDef(owner, outTpe, typeInfoOUTRefDef._1)
+
+              // LabyNode
+              val labyNodeRefDef = getLabyNodeRefDef(
+                owner,
+                (inTpe, outTpe),
+                "map",
+                bagOpRefDef._1,
+                1,
+                partRefDef._1,
+                elementOrEventTypeInfoRefDef._1
+              )
+
+              // addInput
+              val addInputRefDef = getAddInputRefDef(owner, labyNodeRefDef._1, tgtReplRef)
+
+              // setParallelism
+              val SetParallelismRefDef = getSetParallelismRefDef(owner, addInputRefDef._1, 1)
+
+              // put everything into a block
+              val blockVDrhs = core.Let(
+                Seq(bagOpRefDef._2, partRefDef._2, typeInfoOUTRefDef._2, elementOrEventTypeInfoRefDef._2,
+                  labyNodeRefDef._2, addInputRefDef._2, SetParallelismRefDef._2),
+                Seq(),
+                SetParallelismRefDef._1
+              )
+              val blockSym = newValSym(owner, "setPrllzm", blockVDrhs)
+              val blockRefDef = valRefAndDef(blockSym, blockVDrhs)
+              replacements += (lhs -> blockSym)
+
+              //postPrint(blockRefDef._2)
+
+              blockRefDef._2
+
+            // parRefflatmap to LabyNode
+            case dc @ core.DefCall(Some(core.ParRef(tgtSym)), DataBag.flatMap, Seq(outTpe), Seq(Seq(lbdaRef)))
+              if prePrint(dc)=>
+
+              val tgtReplSym = replacements(tgtSym)
+              val tgtReplRef = core.ValRef(tgtReplSym)
+
+              val inTpe = tgtSym.info.typeArgs.head
+
+              // bagoperator
+              val bagOpVDrhs = core.DefCall(
+                Some(ScalaOps$.ref),
+                ScalaOps$.flatMapDataBagHelper,
+                Seq(inTpe, outTpe),
+                Seq(Seq(lbdaRef))
+              )
+              val bagOpRefDef = valRefAndDef(owner, "fromSingSrcApply", bagOpVDrhs)
+
+              // partitioner
+              val targetPara = 1
+              val partVDrhs = core.Inst(
+                getTpe[Always0[Any]],
+                Seq(inTpe),
+                Seq(Seq(core.Lit(targetPara)))
+              )
+              val partRefDef = valRefAndDef(owner, "partitioner", partVDrhs)
+
+              // typeinfo OUT
+              val typeInfoOUTRefDef = getTypeInfoForTypeRefDef(owner, outTpe)
+
+              // ElementOrEventTypeInfo
+              val elementOrEventTypeInfoRefDef = getElementOrEventTypeInfoRefDef(owner, outTpe, typeInfoOUTRefDef._1)
+
+              // LabyNode
+              val labyNodeRefDef = getLabyNodeRefDef(
+                owner,
+                (inTpe, outTpe),
+                "map",
+                bagOpRefDef._1,
+                1,
+                partRefDef._1,
+                elementOrEventTypeInfoRefDef._1
+              )
+
+              // addInput
+              val addInputRefDef = getAddInputRefDef(owner, labyNodeRefDef._1, tgtReplRef)
+
+              // setParallelism
+              val SetParallelismRefDef = getSetParallelismRefDef(owner, addInputRefDef._1, 1)
+
+              // put everything into a block
+              val blockVDrhs = core.Let(
+                Seq(bagOpRefDef._2, partRefDef._2, typeInfoOUTRefDef._2, elementOrEventTypeInfoRefDef._2,
+                  labyNodeRefDef._2, addInputRefDef._2, SetParallelismRefDef._2),
+                Seq(),
+                SetParallelismRefDef._1
+              )
+              val blockSym = newValSym(owner, "setPrllzm", blockVDrhs)
               val blockRefDef = valRefAndDef(blockSym, blockVDrhs)
               replacements += (lhs -> blockSym)
 
@@ -629,7 +825,7 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
                 Seq(),
                 SetParallelismCrossRefDef._1
               )
-              val blockSym = newSymbol(owner, "setPrllzm", blockVDrhs)
+              val blockSym = newValSym(owner, "setPrllzm", blockVDrhs)
               val blockRefDef = valRefAndDef(blockSym, blockVDrhs)
               replacements += (lhs -> blockSym)
 
@@ -687,7 +883,7 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
                 Seq(),
                 SetParallelismRefDef._1
               )
-              val blockSym = newSymbol(owner, "setPrllzm", blockVDrhs)
+              val blockSym = newValSym(owner, "setPrllzm", blockVDrhs)
               val blockRefDef = valRefAndDef(blockSym, blockVDrhs)
               replacements += (lhs -> blockSym)
 
@@ -744,7 +940,7 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
                 Seq(),
                 SetParallelismRefDef._1
               )
-              val blockSym = newSymbol(owner, "setPrllzm", blockVDrhs)
+              val blockSym = newValSym(owner, "setPrllzm", blockVDrhs)
               val blockRefDef = valRefAndDef(blockSym, blockVDrhs)
               replacements += (lhs -> blockSym)
 
@@ -810,7 +1006,7 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
                 Seq(),
                 SetParallelismRefDef._1
               )
-              val blockSym = newSymbol(owner, "setPrllzm", blockVDrhs)
+              val blockSym = newValSym(owner, "setPrllzm", blockVDrhs)
               val blockRefDef = valRefAndDef(blockSym, blockVDrhs)
               replacements += (lhs -> blockSym)
 
@@ -1071,7 +1267,7 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
                 Seq(),
                 SetParallelismWriteStringRefDef._1
               )
-              val blockSym = newSymbol(owner, "setPrllzm", blockVDrhs)
+              val blockSym = newValSym(owner, "setPrllzm", blockVDrhs)
               val blockRefDef = valRefAndDef(blockSym, blockVDrhs)
               replacements += (lhs -> blockSym)
 
@@ -1092,7 +1288,7 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
             vr
           }
 
-        case Attr.inh(dd @ core.DefDef(_, _, pars, core.Let(valdefs, defdefs, expr)), owner::_) =>
+        case Attr.inh(core.DefDef(_, _, pars, core.Let(valdefs, defdefs, expr)), owner::_) =>
 
           val bbid = 1
 
@@ -1140,9 +1336,11 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
                   Seq(tpeOut),
                   Seq(Seq(nmLit, bbidLit, partPhiRefDef._1, inserLit, elementOrEventTypeInfoRefDef._1))
                 )
-                val phiDCRefDef = valRefAndDef(owner, phinodeName, phiDC)
+                val phiSym = newValSym(owner, phinodeName, phiDC)
+                val phiDCRefDef = valRefAndDef(phiSym, phiDC)
 
-                // save mapping from ParRef to PhiNod for later addInput
+                // save mapping from ParRef to PhiNode for later addInput
+                replacements += (sym -> phiSym)
                 refToPhi += (sym -> phiDCRefDef._1)
 
                 // prepend valdefs to body letblock and return letblock
@@ -1159,10 +1357,18 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
             defdefs,
             expr
           )
+          // val blockOutRefDef = valRefAndDef(owner, "blck", blockOut)
 
+          // blockOutRefDef._2
           blockOut
 
+        case Attr.inh(dc @ core.DefCall(Some(tgt), methSym, targs, args), owner :: _) =>
+
+          dc
+
       }._tree(tree)
+
+    // val test = labyrinthLabynize(trans1)
 
     // second traversal to correct block types
     // Background: scala does not change block types if expression type changes
@@ -1175,8 +1381,10 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
           nlb
       }._tree(trans1)
 
+    val flatTrans = Core.unnest(trans2)
+
     // add Labyrinth statics
-    val labyStaticsTrans = trans2 match {
+    val labyStaticsTrans = flatTrans match {
       case core.Let(valdefs, _, _) => {
         println
         // assert(valdefs.nonEmpty, "Programm should have valdefs!")
@@ -1241,7 +1449,7 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
       Seq(tpe),
       Seq(Seq(typeInfo))
     )
-    valRefAndDef(owner, "ElementOrEventTypeInfo", eleveVDrhs)
+    valRefAndDef(owner, "elementOrEventTypeInfo", eleveVDrhs)
   }
 
   def getLabyNodeRefDef(
@@ -1265,7 +1473,7 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
         elementOrEventTypeInfoRef // elemTypeInfo
       ))
     )
-    valRefAndDef(owner, "LabyNode", labyNodeVDrhs)
+    valRefAndDef(owner, "labyNode", labyNodeVDrhs)
   }
 
   def getAddInputRefDef(
@@ -1291,7 +1499,7 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
       Seq(),
       Seq(Seq(core.Lit(parallelism)))
     )
-    valRefAndDef(owner, "setParallelism", setParVDrhs)
+    valRefAndDef(owner, "setPrllzm", setParVDrhs)
   }
 
   object ScalaOps$ extends ModuleAPI {
