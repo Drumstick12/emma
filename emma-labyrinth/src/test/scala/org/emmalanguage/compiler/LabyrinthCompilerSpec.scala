@@ -1203,7 +1203,7 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
         )
           .addInput(iPhi, false, true)
 
-        iPhi.addInput(i$3, false, true)
+        val addInp1 = iPhi.addInput(i$3, false, true)
 
         val printlnNode = new LabyNode[Int, Unit](
           "map",
@@ -1228,7 +1228,7 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
         )
           .addInput(x$1, true, false)
 
-        iPhi.addInput(n1, false, false)
+        val addInp2 = iPhi.addInput(n1, false, false)
 
         LabyStatics.translateAll
         val env = implicitly[org.apache.flink.streaming.api.scala.StreamExecutionEnvironment]

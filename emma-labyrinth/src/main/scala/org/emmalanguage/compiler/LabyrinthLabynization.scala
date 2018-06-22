@@ -60,7 +60,10 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
     val G = ControlFlow.cfg(wraptree)
 
     val replacements = scala.collection.mutable.Map[u.TermSymbol, u.TermSymbol]()
-    val refToPhi = scala.collection.mutable.Map[u.TermSymbol, u.Ident]()
+    val symToPhiRef = scala.collection.mutable.Map[u.TermSymbol, u.Ident]()
+    // here we have to use names because we need mapping from different blocks during the transformation and we
+    // generate new symbols during pattern matching (should be no problem though, as they are unique after lifting)
+    val defSymNameToPhiRef = scala.collection.mutable.Map[String, u.Ident]()
 
     println("___")
     println("==0tree Labynization==")
@@ -83,6 +86,7 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
               //// get splits
               // bagoperator
               val bagOpSplitsVDrhs = core.DefCall(Some(ScalaOps$.ref), ScalaOps$.textSource, Seq(), Seq())
+              skip(bagOpSplitsVDrhs)
               val bagOpSplitsRefDef = valRefAndDef(owner, "inputSplits", bagOpSplitsVDrhs)
 
               // partitioner
@@ -129,6 +133,7 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
               //// read splits
               // bagoperator
               val bagOpReadVDrhs = core.DefCall(Some(ScalaOps$.ref), ScalaOps$.textReader, Seq(), Seq())
+              skip(bagOpReadVDrhs)
               val bagOpReadRefDef = valRefAndDef(owner, "readSplits", bagOpReadVDrhs)
 
               // partitioner
@@ -192,6 +197,7 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
 
               // bagoperator
               val bagOpVDrhs = core.DefCall(Some(ScalaOps$.ref), ScalaOps$.fromNothing, Seq(targ), Seq(Seq(funarg)))
+              skip(bagOpVDrhs)
               val bagOpRefDef = valRefAndDef(owner, "fromNothing", bagOpVDrhs)
 
               // partitioner
@@ -252,6 +258,7 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
                 Seq(targ),
                 Seq(Seq())
               )
+              skip(bagOpVDrhs)
               val bagOpRefDef = valRefAndDef(owner, "fromSingSrcApply", bagOpVDrhs)
 
               val inTpe = singSrcDBsym.info.typeArgs.head
@@ -319,6 +326,7 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
                 Seq(inTpe, outTpe),
                 Seq(Seq(lbdaRef))
               )
+              skip(bagOpVDrhs)
               val bagOpRefDef = valRefAndDef(owner, "fromSingSrcApply", bagOpVDrhs)
 
               // partitioner
@@ -384,6 +392,7 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
                 Seq(inTpe, outTpe),
                 Seq(Seq(lbdaRef))
               )
+              skip(bagOpVDrhs)
               val bagOpRefDef = valRefAndDef(owner, "fromSingSrcApply", bagOpVDrhs)
 
               // partitioner
@@ -449,6 +458,7 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
                 Seq(inTpe, outTpe),
                 Seq(Seq(lbdaRef))
               )
+              skip(bagOpVDrhs)
               val bagOpRefDef = valRefAndDef(owner, "fromSingSrcApply", bagOpVDrhs)
 
               // partitioner
@@ -514,6 +524,7 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
                 Seq(inTpe, outTpe),
                 Seq(Seq(lbdaRef))
               )
+              skip(bagOpVDrhs)
               val bagOpRefDef = valRefAndDef(owner, "fromSingSrcApply", bagOpVDrhs)
 
               // partitioner
@@ -579,6 +590,7 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
                 Seq(inTpe, outTpe),
                 Seq(Seq(lbdaRef))
               )
+              skip(bagOpVDrhs)
               val bagOpRefDef = valRefAndDef(owner, "fromSingSrcApply", bagOpVDrhs)
 
               // partitioner
@@ -643,6 +655,7 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
               val parRefLhs = core.ParRef(parSymLhs)
               val lbdaCallLhs = core.DefCall(Some(Left$.ref), Left$.apply,
                 Seq(tpeA, getTpe[scala.Nothing]), Seq(Seq(parRefLhs)))
+              skip(lbdaCallLhs)
               val lbdaCAllLhsRefDef = valRefAndDef(owner, "lambda", lbdaCallLhs)
               val lbdaBodyLhs = core.Let(Seq(lbdaCAllLhsRefDef._2), Seq(), lbdaCAllLhsRefDef._1)
               val mapLambdaLhs = core.Lambda(Seq(parSymLhs), lbdaBodyLhs)
@@ -654,6 +667,7 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
                 Seq(tpeA, api.Type.apply(getTpe[scala.util.Either[Any,Any]], Seq(tpeA, tpeB))),
                 Seq(Seq(mapLambdaLhsRefDef._1))
               )
+              skip(bagOpLhsVDrhs)
               val bagOpMapLhsRefDef = valRefAndDef(owner, "mapToLeftOp", bagOpLhsVDrhs)
 
               // partitioner
@@ -705,6 +719,7 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
               val parRefRhs = core.ParRef(parSymRhs)
               val lbdaCallRhs = core.DefCall(Some(Right$.ref), Right$.apply,
                 Seq(getTpe[scala.Nothing], tpeB), Seq(Seq(parRefRhs)))
+              skip(lbdaCallRhs)
               val lbdaCAllRhsRefDef = valRefAndDef(owner, "lambda", lbdaCallRhs)
               val lbdaBodyRhs = core.Let(Seq(lbdaCAllRhsRefDef._2), Seq(), lbdaCAllRhsRefDef._1)
               val mapLambdaRhs = core.Lambda(Seq(parSymRhs), lbdaBodyRhs)
@@ -716,6 +731,7 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
                 Seq(tpeB, api.Type.apply(getTpe[scala.util.Either[Any,Any]], Seq(tpeA, tpeB))),
                 Seq(Seq(mapLambdaRhsRefDef._1))
               )
+              skip(bagOpRhsVDrhs)
               val bagOpMapRhsRefDef = valRefAndDef(owner, "mapToRightOp", bagOpRhsVDrhs)
 
               // partitioner
@@ -765,6 +781,7 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
                 Seq(tpeA,tpeB),
                 Seq()
               )
+              skip(bagOpCrossVDrhs)
               val bagOpCrossRefDef = valRefAndDef(owner, "crossOp", bagOpCrossVDrhs)
 
               // partitioner
@@ -842,6 +859,7 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
 
               // bagoperator
               val bagOpVDrhs = core.DefCall(Some(ScalaOps$.ref), ScalaOps$.foldAlgHelper, targs, Seq(Seq(alg)))
+              skip(bagOpVDrhs)
               val bagOpRefDef = valRefAndDef(owner, "fold1Op", bagOpVDrhs)
 
               // partitioner
@@ -899,6 +917,7 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
 
               // bagoperator
               val bagOpVDrhs = core.DefCall(Some(ScalaOps$.ref), ScalaOps$.fold, targs, Seq(Seq(zero, init, plus)))
+              skip(bagOpVDrhs)
               val bagOpRefDef = valRefAndDef(owner, "fold2Op", bagOpVDrhs)
 
               // partitioner
@@ -962,6 +981,7 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
                 ScalaOps$.foldGroupAlgHelper,
                 Seq(tpeK, tpeA, tpeB), Seq(Seq(extrRef, alg))
               )
+              skip(bagOpVDrhs)
               val bagOpRefDef = valRefAndDef(owner, "foldGroupOp", bagOpVDrhs)
 
               // partitioner
@@ -1033,6 +1053,7 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
               val parRefLhs = core.ParRef(parSymLhs)
               val lbdaCallLhs = core.DefCall(Some(Left$.ref), Left$.apply,
                 Seq(dbTpe, getTpe[scala.Nothing]), Seq(Seq(parRefLhs)))
+              skip(lbdaCallLhs)
               val lbdaCAllLhsRefDef = valRefAndDef(owner, "lambda", lbdaCallLhs)
               val lbdaBodyLhs = core.Let(Seq(lbdaCAllLhsRefDef._2), Seq(), lbdaCAllLhsRefDef._1)
               val mapLambdaLhs = core.Lambda(Seq(parSymLhs), lbdaBodyLhs)
@@ -1044,6 +1065,7 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
                 Seq(dbTpe, api.Type.apply(getTpe[scala.util.Either[Any,Any]], Seq(dbTpe, csvTpe))),
                 Seq(Seq(mapLambdaLhsRefDef._1))
               )
+              skip(bagOpLhsVDrhs)
               val bagOpMapLhsRefDef = valRefAndDef(owner, "mapToLeftOp", bagOpLhsVDrhs)
 
               // partitioner
@@ -1089,6 +1111,7 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
               val parRefRhs = core.ParRef(parSymRhs)
               val lbdaCallRhs = core.DefCall(Some(Right$.ref), Right$.apply,
                 Seq(getTpe[scala.Nothing], csvTpe), Seq(Seq(parRefRhs)))
+              skip(lbdaCallRhs)
               val lbdaCAllRhsRefDef = valRefAndDef(owner, "lambda", lbdaCallRhs)
               val lbdaBodyRhs = core.Let(Seq(lbdaCAllRhsRefDef._2), Seq(), lbdaCAllRhsRefDef._1)
               val mapLambdaRhs = core.Lambda(Seq(parSymRhs), lbdaBodyRhs)
@@ -1100,6 +1123,7 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
                 Seq(csvTpe, api.Type.apply(getTpe[scala.util.Either[Any,Any]], Seq(dbTpe, csvTpe))),
                 Seq(Seq(mapLambdaRhsRefDef._1))
               )
+              skip(bagOpRhsVDrhs)
               val bagOpMapRhsRefDef = valRefAndDef(owner, "mapToRightOp", bagOpRhsVDrhs)
 
               // partitioner
@@ -1146,6 +1170,7 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
                 Seq(dbTpe),
                 Seq()
               )
+              skip(bagOpToCsvStringVDrhs)
               val bagOpToCsvStringRefDef = valRefAndDef(owner, "toCsvString", bagOpToCsvStringVDrhs)
 
               // partitioner
@@ -1199,6 +1224,7 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
                 Seq(),
                 Seq()
               )
+              skip(bagOpWriteStringVDrhs)
               val bagOpWriteStringRefDef = valRefAndDef(owner, "writeString", bagOpWriteStringVDrhs)
 
               // partitioner
@@ -1288,7 +1314,7 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
             vr
           }
 
-        case Attr.inh(core.DefDef(_, _, pars, core.Let(valdefs, defdefs, expr)), owner::_) =>
+        case Attr.inh(dd @ core.DefDef(_, _, pars, core.Let(valdefs, defdefs, expr)), owner::_) =>
 
           val bbid = 1
 
@@ -1336,12 +1362,14 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
                   Seq(tpeOut),
                   Seq(Seq(nmLit, bbidLit, partPhiRefDef._1, inserLit, elementOrEventTypeInfoRefDef._1))
                 )
+                skip(phiDC)
                 val phiSym = newValSym(owner, phinodeName, phiDC)
                 val phiDCRefDef = valRefAndDef(phiSym, phiDC)
 
                 // save mapping from ParRef to PhiNode for later addInput
                 replacements += (sym -> phiSym)
-                refToPhi += (sym -> phiDCRefDef._1)
+                symToPhiRef += (sym -> phiDCRefDef._1)
+                defSymNameToPhiRef += (dd.symbol.name.toString -> phiDCRefDef._1)
 
                 // prepend valdefs to body letblock and return letblock
                 Seq(partPhiRefDef._2, typeInfoRefDef._2, elementOrEventTypeInfoRefDef._2, phiDCRefDef._2)
@@ -1357,29 +1385,56 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
             defdefs,
             expr
           )
-          // val blockOutRefDef = valRefAndDef(owner, "blck", blockOut)
+          val blockOutRefDef = valRefAndDef(owner, "blck", blockOut)
 
-          // blockOutRefDef._2
-          blockOut
+          blockOutRefDef._2
+          //blockOut
 
-        case Attr.inh(dc @ core.DefCall(Some(tgt), methSym, targs, args), owner :: _) =>
+        case Attr.inh(dc @ core.DefCall(tgt, methSym, targs, args), owner :: _)
+          if !meta(dc).all.all.contains(SkipTraversal) && !isFun(owner) && /*TODO verify this*/ !isFun(owner.owner) =>
 
-          dc
+          println(dc)
+
+          val bbId = 1
+
+          var insideBlock = true
+          if (owner == enclosingOwner) insideBlock = false
+
+          val condOut = false
+          // if (owner == if) condOut = true?
+
+          val addInputDefs = args.flatMap(
+            s => s.map{
+              case core.ParRef(sym) =>
+                val phiRef = defSymNameToPhiRef(dc.symbol.name.toString)
+                val addInp = getAddInputRefDef(owner, phiRef, core.ParRef(replacements(sym)), insideBlock, condOut)
+                addInp._2
+              case core.ValRef(sym) =>
+                val phiRef = defSymNameToPhiRef(dc.symbol.name.toString)
+                val addInp = getAddInputRefDef(owner, phiRef, core.ValRef(replacements(sym)), insideBlock, condOut)
+                addInp._2
+            }
+          )
+
+          val blck = core.Let(addInputDefs)
+          val blckRefDef = valRefAndDef(owner, "blck", blck)
+          blckRefDef._2
 
       }._tree(tree)
-
-    // val test = labyrinthLabynize(trans1)
 
     // second traversal to correct block types
     // Background: scala does not change block types if expression type changes
     // (see internal/Trees.scala - Tree.copyAttrs)
-    val trans2 = api.TopDown.unsafe
+    // TODO type error when unnesting
+    val trans2 = api.BottomUp.unsafe
       .withOwner
       .transformWith {
-        case Attr.inh(lb @ core.Let(valdefs, defdefs, expr), _) if lb.tpe != expr.tpe =>
+        case Attr.inh(lb @ core.Let(valdefs, defdefs, expr), _) =>
           val nlb = core.Let(valdefs, defdefs, expr)
           nlb
       }._tree(trans1)
+
+    println("XXX: " + trans2)
 
     val flatTrans = Core.unnest(trans2)
 
@@ -1441,6 +1496,7 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
       Seq(tpe),
       Seq()
     )
+    skip(typeInfoOUTVDrhs)
     valRefAndDef(owner, "typeInfo", typeInfoOUTVDrhs)}
 
   def getElementOrEventTypeInfoRefDef(owner: u.Symbol, tpe: u.Type, typeInfo: u.Ident): (u.Ident, u.ValDef) = {
@@ -1489,6 +1545,7 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
       Seq(),
       Seq(Seq(singSrcDBReplRef, core.Lit(insideBlock), core.Lit(condOut)))
     )
+    skip(addInputVDrhs)
     valRefAndDef(owner, "addInput", addInputVDrhs)
   }
 
@@ -1499,6 +1556,7 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
       Seq(),
       Seq(Seq(core.Lit(parallelism)))
     )
+    skip(setParVDrhs)
     valRefAndDef(owner, "setPrllzm", setParVDrhs)
   }
 
