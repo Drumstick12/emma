@@ -293,6 +293,11 @@ object ScalaOps {
   def writeString: BagOperator[String, scala.Unit] = {
     new FileSinkString
   }
+
+  def condNode(trueBbIds: Seq[Int], falseBbIds: Seq[Int])
+  : BagOperator[Boolean, org.emmalanguage.labyrinth.util.Unit] = {
+    new ConditionNodeScala(trueBbIds.toArray, falseBbIds.toArray)
+  }
 }
 
 object LabyStatics {

@@ -70,6 +70,11 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
     println(tree)
     println("--0tree END--")
 
+    // val valdefsfinal = Seq[u.ValDef]()
+    //    val tt = api.TopDown.withOwner.traverseWith{
+    //      case (t: u.Tree) => t
+    //    }
+
     // first traversal does the labyrinth labynization. second for block type correction.
     val trans1 = api.TopDown.unsafe
       .withOwner
@@ -1390,8 +1395,83 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
           blockOutRefDef._2
           //blockOut
 
+        // create condNode when encountering if statements
+        case Attr.inh(cnd @ core.Branch(cond @ core.ValRef(condSym), thn, els), owner::_) =>
+          println(cond, condSym, thn, els)
+
+          val condSymRepl = replacements(condSym)
+          val condSymReplRef = core.ValRef(condSym)
+
+          val thnIds = Seq(2,1)
+          val elsIds = Seq(3)
+          val thnIdsDC = core.DefCall(Some(Seq$.ref), Seq$.apply, Seq(), Seq(thnIds.map(core.Lit(_))))
+          val elsIdsDC = core.DefCall(Some(Seq$.ref), Seq$.apply, Seq(), Seq(elsIds.map(core.Lit(_))))
+          val thnIdsDCRefDef = valRefAndDef(owner, "seq", thnIdsDC)
+          val elsIdsDCRefDef = valRefAndDef(owner, "seq", elsIdsDC)
+          skip(thnIdsDC)
+          skip(elsIdsDC)
+          val condOp = core.DefCall(Some(ScalaOps$.ref), ScalaOps$.condNode, Seq(),
+            Seq(Seq(
+              thnIdsDCRefDef._1,
+              elsIdsDCRefDef._1
+            )))
+          skip(condOp)
+          val condOpRefDef = valRefAndDef(owner, "condOp", condOp)
+
+          val tpeIn = u.typeOf[scala.Boolean]
+          val tpeOut = getTpe[labyrinth.util.Unit]
+
+          // partitioner
+          val targetParaLhs = 1
+          val part = core.Inst(
+            getTpe[Always0[Any]],
+            Seq(tpeIn),
+            Seq(Seq(core.Lit(targetParaLhs)))
+          )
+          val partRefDef = valRefAndDef(owner, "partitioner", part)
+
+          // typeinfo OUT
+          val typeInfoOUTRefDef =
+            getTypeInfoForTypeRefDef(owner, tpeOut)
+
+          // ElementOrEventTypeInfo
+          val elementOrEventTypeInfoRefDef =
+            getElementOrEventTypeInfoRefDef(
+              owner,
+              tpeOut,
+              typeInfoOUTRefDef._1)
+
+          // LabyNode
+          val labyNodeRefDef = getLabyNodeRefDef(
+            owner,
+            (tpeIn, tpeOut),
+            "condNode",
+            condOpRefDef._1,
+            1,
+            partRefDef._1,
+            elementOrEventTypeInfoRefDef._1
+          )
+
+          // addInput
+          val addInputRefDef = getAddInputRefDef(owner, labyNodeRefDef._1, condSymReplRef)
+
+          // setParallelism
+          val setParallelismMapLhsRefDef = getSetParallelismRefDef(owner, addInputRefDef._1, 1)
+
+          // put everything into block
+          val block = core.Let(
+            Seq(thnIdsDCRefDef._2, elsIdsDCRefDef._2, condOpRefDef._2, partRefDef._2, typeInfoOUTRefDef._2,
+              elementOrEventTypeInfoRefDef._2, labyNodeRefDef._2, addInputRefDef._2, setParallelismMapLhsRefDef._2),
+            Seq(),
+            setParallelismMapLhsRefDef._1
+          )
+          val blockRefDef = valRefAndDef(owner, "setPrllzm", block)
+          blockRefDef._2
+
+        // add inputs to phi nodes when encountering defcalls
         case Attr.inh(dc @ core.DefCall(tgt, methSym, targs, args), owner :: _)
-          if !meta(dc).all.all.contains(SkipTraversal) && !isFun(owner) && /*TODO verify this*/ !isFun(owner.owner) =>
+          if !meta(dc).all.all.contains(SkipTraversal) && !isFun(owner) && /*TODO verify this*/ !isFun(owner.owner) &&
+        !(args.size == 1 && args.head.isEmpty) /*skip if no arguments*/ && args.nonEmpty =>
 
           println(dc)
 
@@ -1403,20 +1483,23 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
           val condOut = false
           // if (owner == if) condOut = true?
 
+          var addInputRefs = Seq[u.Ident]()
           val addInputDefs = args.flatMap(
             s => s.map{
               case core.ParRef(sym) =>
                 val phiRef = defSymNameToPhiRef(dc.symbol.name.toString)
                 val addInp = getAddInputRefDef(owner, phiRef, core.ParRef(replacements(sym)), insideBlock, condOut)
+                addInputRefs = addInputRefs :+ addInp._1
                 addInp._2
               case core.ValRef(sym) =>
                 val phiRef = defSymNameToPhiRef(dc.symbol.name.toString)
                 val addInp = getAddInputRefDef(owner, phiRef, core.ValRef(replacements(sym)), insideBlock, condOut)
+                addInputRefs = addInputRefs :+ addInp._1
                 addInp._2
             }
           )
 
-          val blck = core.Let(addInputDefs)
+          val blck = core.Let(addInputDefs, Seq(), addInputRefs.last)
           val blckRefDef = valRefAndDef(owner, "blck", blck)
           blckRefDef._2
 
@@ -1429,14 +1512,27 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
     val trans2 = api.BottomUp.unsafe
       .withOwner
       .transformWith {
-        case Attr.inh(lb @ core.Let(valdefs, defdefs, expr), _) =>
+        case Attr.inh(core.Let(valdefs, defdefs, expr), _) =>
           val nlb = core.Let(valdefs, defdefs, expr)
           nlb
+        case Attr.inh(core.ValDef(sym, rhs), owner::_) if (!(sym.info.widen =:= rhs.tpe.widen)) =>
+          val tmp = valRefAndDef(owner, sym.name.toString, rhs)._2
+          tmp
       }._tree(trans1)
 
     println("XXX: " + trans2)
 
-    val flatTrans = Core.unnest(trans2)
+    // val flatTrans = Core.unnest(trans2)
+    val flatTrans = core.Let(trans2.collect{
+      case vd @ core.ValDef(_, core.Lambda(_,_,_)) => vd
+      case vd @ core.ValDef(_, core.DefCall(Some(ScalaOps$.ref), _, _, _)) => vd
+      case vd @ core.ValDef(_, core.DefCall(Some(Memo$.ref), _, _, _)) => vd
+      case vd @ core.ValDef(_, core.DefCall(Some(LabyStatics$.ref), _, _, _)) => vd
+      case vd @ core.ValDef(_, core.DefCall(_, LabyNodeAPI.addInput, _, _)) => vd
+      case vd @ core.ValDef(_, core.DefCall(_, LabyNodeAPI.setParallelism, _, _)) => vd
+      case vd @ core.ValDef(_, core.DefCall(Some(Seq$.ref), Seq$.apply, _, _)) => vd
+      case vd @ core.ValDef(_, core.Inst(_, _, _)) => vd
+    })
 
     // add Labyrinth statics
     val labyStaticsTrans = flatTrans match {
@@ -1563,6 +1659,7 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
   object ScalaOps$ extends ModuleAPI {
     lazy val sym = api.Sym[ScalaOps.type].asModule
 
+    val condNode = op("condNode")
     val cross = op("cross")
     val flatMapDataBagHelper = op("flatMapDataBagHelper")
     val fold = op("fold")

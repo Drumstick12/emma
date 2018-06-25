@@ -139,6 +139,15 @@ trait LabyrinthCompilerBase extends Compiler {
     override def ops = Set()
   }
 
+  object Array$ extends ModuleAPI {
+
+    lazy val sym = api.Sym[Array.type].asModule
+
+    val apply = op("apply")
+
+    override def ops = Set()
+  }
+
   object Alg$ extends ClassAPI {
     lazy val sym = api.Sym[org.emmalanguage.api.alg.Alg[Any, Any]].asClass
     override def ops = Set()

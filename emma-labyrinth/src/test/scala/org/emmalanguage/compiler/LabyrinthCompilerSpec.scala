@@ -1175,6 +1175,7 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
           null,
           new ElementOrEventTypeInfo[Int](Memo.typeInfoForType[Int])
         )
+          .setParallelism(1)
 
         val iPhi = LabyStatics.phi[Int](
           "i",
@@ -1184,15 +1185,16 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
           new ElementOrEventTypeInfo[Int](Memo.typeInfoForType[Int])
         )
 
-        val x$1 = new LabyNode[Int, java.lang.Boolean](
+        val x$1 = new LabyNode[Int, Boolean](
           "x$1",
           ScalaOps.map(_ < 100),
           1,
           new Always0[Int](1),
           null,
-          new ElementOrEventTypeInfo[java.lang.Boolean](Memo.typeInfoForType[java.lang.Boolean])
+          new ElementOrEventTypeInfo[Boolean](Memo.typeInfoForType[Boolean])
         )
           .addInput(iPhi, true, false)
+          .setParallelism(1)
 
         val i$3 = new LabyNode[Int, Int](
           "i$3",
@@ -1202,6 +1204,7 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
           new ElementOrEventTypeInfo[Int](Memo.typeInfoForType[Int])
         )
           .addInput(iPhi, false, true)
+          .setParallelism(1)
 
         val addInp1 = iPhi.addInput(i$3, false, true)
 
@@ -1214,19 +1217,21 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
           new ElementOrEventTypeInfo[Unit](Memo.typeInfoForType[Unit])
         )
           .addInput(iPhi, false, true)
+          .setParallelism(1)
 
         val ifCondNode = new LabyNode(
           "ifCondNode",
-          new ConditionNode(  //[java.lang.Boolean, util.Unit]
-            Array(2, 1), //vigyazat!
-            Array(3)
+          ScalaOps.condNode( //[java.lang.Boolean, util.Unit]
+            Seq(2, 1), //vigyazat!
+            Seq(3)
           ),
           1,
-          new Always0[java.lang.Boolean](1),
+          new Always0[Boolean](1),
           null,
           new ElementOrEventTypeInfo[labyrinth.util.Unit](Memo.typeInfoForType[labyrinth.util.Unit])
         )
           .addInput(x$1, true, false)
+          .setParallelism(1)
 
         val addInp2 = iPhi.addInput(n1, false, false)
 
