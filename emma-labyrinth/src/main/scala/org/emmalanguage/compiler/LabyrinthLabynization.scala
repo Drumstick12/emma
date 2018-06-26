@@ -39,8 +39,16 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
   val labyrinthLabynize: TreeTransform = TreeTransform("labyrinthLabynize", (tree: u.Tree) => {
 
     val outerTermName = api.TermName.fresh("OUTER")
+    val outerToEncl = Map(outerTermName.toString -> enclosingOwner.name.toString)
+    def name(ts: u.TermSymbol): String = {
+      if (outerToEncl.keys.toList.contains(ts.name.toString)) {
+        outerToEncl(ts.name.toString)
+      } else {
+        ts.name.toString
+      }
+    }
 
-    // wrap outer block into dummy defdef
+    // wrap outer block into dummy defdef to get all basic block affiliations
     val wraptree = tree match {
       case lt @ core.Let(_,_,_) => {
         val owner = enclosingOwner
@@ -56,9 +64,37 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
       case t: u.Tree => t
     }
 
-    // get
+    // --- get control flow info -- //
     val G = ControlFlow.cfg(wraptree)
+    val bbParents = G.ctrl.edges.map(e => name(e.from)).toSet
+    val bbChildren = G.ctrl.edges.map(e => name(e.to)).toSet
+    // bbids
+    val bbIdMap = scala.collection.mutable.Map[String, Int]()
+    bbIdMap += (enclosingOwner.name.toString -> 0)
+    var idCounter = 1
+    bbChildren.foreach( e => { bbIdMap += (e -> idCounter); idCounter += 1 })
+    // define dependencies
+    val gDependencies = scala.collection.mutable.Map[String, Seq[String]]()
+    G.ctrl.edges.foreach(n =>
+      if (!gDependencies.keys.toList.contains(name(n.from))) { gDependencies += (name(n.from) -> Seq(name(n.to))) }
+      else { gDependencies(name(n.from)) = gDependencies(name(n.from)) :+ name(n.to) }
+    )
+    val gBbDependencies = scala.collection.mutable.Map[Int, Seq[Int]]()
+    gDependencies.keys.foreach(k => gBbDependencies += (bbIdMap(k) -> gDependencies(k).map(bbIdMap(_))) )
+    // number of outgoing edges
+    val bbIdNumOut = scala.collection.mutable.Map[Int, Int]()
+    gDependencies.keys.foreach(n => bbIdNumOut += (bbIdMap(n) -> gDependencies(n).size))
 
+    def bbIdShortcut(start: Int): Seq[Int] = {
+      if (!bbIdNumOut.keys.toList.contains(start) || bbIdNumOut(start) != 1) {
+        Seq(start)
+      } else {
+        Seq(start) ++ gBbDependencies(start).flatMap( id => bbIdShortcut(id) )
+      }
+    }
+    // --- ofni wolf lortnoc teg -- //
+
+    // transformation helpers
     val replacements = scala.collection.mutable.Map[u.TermSymbol, u.TermSymbol]()
     val symToPhiRef = scala.collection.mutable.Map[u.TermSymbol, u.Ident]()
     // here we have to use names because we need mapping from different blocks during the transformation and we
@@ -120,7 +156,7 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
                 (u.typeOf[String], tpeOutSplits),
                 "inputSplits",
                 bagOpSplitsRefDef._1,
-                1,
+                bbIdMap(owner.name.toString),
                 partSplitsRefDef._1,
                 elementOrEventTypeInfoSplitsRefDef._1
               )
@@ -163,7 +199,7 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
                 (tpeOutSplits, tpeOutRead),
                 "readSplits",
                 bagOpReadRefDef._1,
-                1,
+                bbIdMap(owner.name.toString),
                 partReadRefDef._1,
                 elementOrEventTypeInfoReadRefDef._1
               )
@@ -213,7 +249,7 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
                 (getTpe[labyrinth.util.Nothing], targ),
                 "fromNothing",
                 bagOpRefDef._1,
-                1,
+                bbIdMap(owner.name.toString),
                 partRefDef._1,
                 elementOrEventTypeInfoRefDef._1
               )
@@ -267,7 +303,7 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
                 (inTpe, targ),
                 "fromSingSrcApply",
                 bagOpRefDef._1,
-                1,
+                bbIdMap(owner.name.toString),
                 partRefDef._1,
                 elementOrEventTypeInfoRefDef._1
               )
@@ -324,7 +360,7 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
                 (inTpe, outTpe),
                 "map",
                 bagOpRefDef._1,
-                1,
+                bbIdMap(owner.name.toString),
                 partRefDef._1,
                 elementOrEventTypeInfoRefDef._1
               )
@@ -381,7 +417,7 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
                 (inTpe, outTpe),
                 "map",
                 bagOpRefDef._1,
-                1,
+                bbIdMap(owner.name.toString),
                 partRefDef._1,
                 elementOrEventTypeInfoRefDef._1
               )
@@ -438,7 +474,7 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
                 (inTpe, outTpe),
                 "map",
                 bagOpRefDef._1,
-                1,
+                bbIdMap(owner.name.toString),
                 partRefDef._1,
                 elementOrEventTypeInfoRefDef._1
               )
@@ -495,7 +531,7 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
                 (inTpe, outTpe),
                 "map",
                 bagOpRefDef._1,
-                1,
+                bbIdMap(owner.name.toString),
                 partRefDef._1,
                 elementOrEventTypeInfoRefDef._1
               )
@@ -552,7 +588,7 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
                 (inTpe, outTpe),
                 "map",
                 bagOpRefDef._1,
-                1,
+                bbIdMap(owner.name.toString),
                 partRefDef._1,
                 elementOrEventTypeInfoRefDef._1
               )
@@ -624,7 +660,7 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
                 (tpeA, api.Type.apply(getTpe[scala.util.Either[Any,Any]], Seq(tpeA, tpeB))),
                 "map",
                 bagOpMapLhsRefDef._1,
-                1,
+                bbIdMap(owner.name.toString),
                 partMapLhsRefDef._1,
                 elementOrEventTypeInfoMapLhsRefDef._1
               )
@@ -686,7 +722,7 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
                 (tpeB, api.Type.apply(getTpe[scala.util.Either[Any,Any]], Seq(tpeA, tpeB))),
                 "map",
                 bagOpMapRhsRefDef._1,
-                1,
+                bbIdMap(owner.name.toString),
                 partMapRhsRefDef._1,
                 elementOrEventTypeInfoMapRhsRefDef._1
               )
@@ -738,7 +774,7 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
                   api.Type.apply(getTpe[org.apache.flink.api.java.tuple.Tuple2[Any,Any]], Seq(tpeA, tpeB))),
                 "cross",
                 bagOpCrossRefDef._1,
-                1,
+                bbIdMap(owner.name.toString),
                 partCrossRefDef._1,
                 elementOrEventTypeInfoCrossRefDef._1
               )
@@ -799,7 +835,7 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
                 (tpeA, tpeB),
                 "fold1",
                 bagOpRefDef._1,
-                1,
+                bbIdMap(owner.name.toString),
                 partRefDef._1,
                 elementOrEventTypeInfoRefDef._1
               )
@@ -848,7 +884,7 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
                 (tpeA, tpeB),
                 "fold2",
                 bagOpRefDef._1,
-                1,
+                bbIdMap(owner.name.toString),
                 partRefDef._1,
                 elementOrEventTypeInfoRefDef._1
               )
@@ -905,7 +941,7 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
                 (tpeA, tpeOut),
                 "foldGroup",
                 bagOpRefDef._1,
-                1,
+                bbIdMap(owner.name.toString),
                 partRefDef._1,
                 elementOrEventTypeInfoRefDef._1
               )
@@ -981,7 +1017,7 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
                 (dbTpe, api.Type.apply(getTpe[scala.util.Either[Any,Any]], Seq(dbTpe, csvTpe))),
                 "map",
                 bagOpMapLhsRefDef._1,
-                1,
+                bbIdMap(owner.name.toString),
                 partMapLhsRefDef._1,
                 elementOrEventTypeInfoMapLhsRefDef._1
               )
@@ -1037,7 +1073,7 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
                 (csvTpe, api.Type.apply(getTpe[scala.util.Either[Any,Any]], Seq(dbTpe, csvTpe))),
                 "map",
                 bagOpMapRhsRefDef._1,
-                1,
+                bbIdMap(owner.name.toString),
                 partMapRhsRefDef._1,
                 elementOrEventTypeInfoMapRhsRefDef._1
               )
@@ -1085,7 +1121,7 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
                 (api.Type.apply(getTpe[scala.util.Either[Any,Any]], Seq(dbTpe, csvTpe)), pathTpe),
                 "toCsvString",
                 bagOpToCsvStringRefDef._1,
-                1,
+                bbIdMap(owner.name.toString),
                 partToCsvStringRefDef._1,
                 elementOrEventTypeInfoToCsvStringRefDef._1
               )
@@ -1138,7 +1174,7 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
                 (pathTpe, u.typeOf[Unit]),
                 "stringFileSink",
                 bagOpWriteStringRefDef._1,
-                1,
+                bbIdMap(owner.name.toString),
                 partWriteStringRefDef._1,
                 elementOrEventTypeInfoWriteStringRefDef._1
               )
@@ -1245,14 +1281,17 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
           valDefsFinal = valDefsFinal ++ nDefs
 
         // create condNode when encountering if statements
-        case Attr.inh(cnd @ core.Branch(cond @ core.ValRef(condSym), thn, els), owner::_) =>
+        case Attr.inh(cnd @ core.Branch(cond @ core.ValRef(condSym),
+        thn @ core.DefCall(_, thnSym, _, _),
+        els @ core.DefCall(_, elsSym, _, _)
+        ), owner::_) =>
           println(cond, condSym, thn, els)
 
           val condSymRepl = replacements(condSym)
           val condSymReplRef = core.ValRef(condSymRepl)
 
-          val thnIds = Seq(2,1)
-          val elsIds = Seq(3)
+          val thnIds = bbIdShortcut(bbIdMap(thnSym.name.toString))
+          val elsIds = bbIdShortcut(bbIdMap(elsSym.name.toString))
           val thnIdsDC = core.DefCall(Some(Seq$.ref), Seq$.apply, Seq(), Seq(thnIds.map(core.Lit(_))))
           val elsIdsDC = core.DefCall(Some(Seq$.ref), Seq$.apply, Seq(), Seq(elsIds.map(core.Lit(_))))
           val thnIdsDCRefDef = valRefAndDef(owner, "seq", thnIdsDC)
@@ -1293,7 +1332,7 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
             (tpeIn, tpeOut),
             "condNode",
             condOpRefDef._1,
-            1,
+            bbIdMap(owner.name.toString),
             partRefDef._1,
             elementOrEventTypeInfoRefDef._1
           )
@@ -1316,7 +1355,7 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
 
           println(dc)
 
-          val bbId = 1
+          val bbId = bbIdMap(owner.name.toString)
 
           var insideBlock = true
           if (owner == enclosingOwner) insideBlock = false
@@ -1354,7 +1393,9 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
         // val owner = valdefs.head.symbol.owner
         val owner = enclosingOwner
 
-        val terminalBbid = 1
+        // terminal basic block id: find block which has no outgoing edges
+        val terminalSet = bbChildren.filter(!bbParents.contains(_))
+        val terminalBbid = bbIdMap(terminalSet.head)
 
         // before code
         val custSerDC = core.DefCall(Some(LabyStatics$.ref), LabyStatics$.registerCustomSerializer, Seq(), Seq())
@@ -1364,7 +1405,9 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
           Seq(Seq(core.Lit(terminalBbid))))
         val termIdDCRefDef = valRefAndDef(owner, "terminalBbId", termIdDC)
 
-        val startingBasicBlocks = Seq(core.Lit(1))
+        // kickoff blocks: start with enclosingOwner and add child of each block that has only one child
+        val startBbIds = bbIdShortcut(bbIdMap(enclosingOwner.name.toString))
+        val startingBasicBlocks = startBbIds.map(core.Lit(_))
         val kickOffWorldCup2018SourceDC = core.DefCall(Some(LabyStatics$.ref), LabyStatics$.setKickoffSource, Seq(),
           Seq(startingBasicBlocks))
         val kickOffWorldCup2018SourceDCRefDef = valRefAndDef(owner, "kickOffSource", kickOffWorldCup2018SourceDC)

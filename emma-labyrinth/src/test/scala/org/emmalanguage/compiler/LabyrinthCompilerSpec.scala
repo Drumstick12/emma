@@ -1178,7 +1178,7 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
           .setParallelism(1)
 
         val iPhi = LabyStatics.phi[Int](
-          "i",
+          "arg$r1Phi",
           1,
           new Always0[Int](1),
           null,
@@ -1186,7 +1186,7 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
         )
 
         val x$1 = new LabyNode[Int, Boolean](
-          "x$1",
+          "map",
           ScalaOps.map(_ < 100),
           1,
           new Always0[Int](1),
@@ -1197,7 +1197,7 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
           .setParallelism(1)
 
         val i$3 = new LabyNode[Int, Int](
-          "i$3",
+          "map",
           ScalaOps.map(_ + 1),
           2,
           new Always0[Int](1), null,
@@ -1220,7 +1220,7 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
           .setParallelism(1)
 
         val ifCondNode = new LabyNode(
-          "ifCondNode",
+          "condNode",
           ScalaOps.condNode( //[java.lang.Boolean, util.Unit]
             Seq(2, 1), //vigyazat!
             Seq(3)
