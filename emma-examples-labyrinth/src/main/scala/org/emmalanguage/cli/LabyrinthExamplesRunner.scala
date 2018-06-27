@@ -127,7 +127,6 @@ object LabyrinthExamplesRunner extends LabyrinthAware {
 
   def wordCount(c: Config)(implicit flink: StreamExecutionEnvironment): Unit =
 
-
     emma.onLabyrinth {
       // read the input files and split them into lowercased words
       val docs = DataBag.readText(c.input)
@@ -135,7 +134,6 @@ object LabyrinthExamplesRunner extends LabyrinthAware {
       val counts = WordCount(docs)
       // write the results into a file
       counts.writeCSV(c.output, c.csv)
-//      docs.writeCSV(c.output, c.csv)
     }
 
   // ---------------------------------------------------------------------------

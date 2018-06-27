@@ -584,9 +584,12 @@ trait LabyrinthNormalization extends LabyrinthCompilerBase {
           val nlb = core.Let(valdefs, defdefs, expr)
           nlb
       }._tree(firstRun)
+    val thirdRun = secondRun match {
+      case lb @ core.Let(valdefs, defdefs, expr) => core.Let(valdefs, defdefs, expr)
+    }
 
-    postPrint(secondRun)
-    secondRun
+    postPrint(thirdRun)
+    thirdRun
 
   })
 

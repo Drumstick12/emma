@@ -53,7 +53,7 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
       case lt @ core.Let(_,_,_) => {
         val owner = enclosingOwner
         val dd = core.DefDef(
-          api.DefSym(owner, outerTermName),
+          api.DefSym(owner, outerTermName, res = api.Type.any),
           Seq(),
           Seq(),
           lt
@@ -100,11 +100,6 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
     // here we have to use names because we need mapping from different blocks during the transformation and we
     // generate new symbols during pattern matching (should be no problem though, as they are unique after lifting)
     val defSymNameToPhiRef = scala.collection.mutable.Map[String, u.Ident]()
-
-    println("___")
-    println("==0tree Labynization==")
-    println(tree)
-    println("--0tree END--")
 
     var valDefsFinal = Seq[u.ValDef]()
 
