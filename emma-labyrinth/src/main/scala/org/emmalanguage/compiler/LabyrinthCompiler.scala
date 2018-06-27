@@ -33,7 +33,6 @@ trait LabyrinthCompiler
     // optimizations
     Core.cse iff "emma.compiler.opt.cse" is true,
     Optimizations.foldFusion iff "emma.compiler.opt.fold-fusion" is true,
-    Optimizations.addCacheCalls iff "emma.compiler.opt.auto-cache" is true,
     // backend
     Comprehension.combine,
     Core.unnest,

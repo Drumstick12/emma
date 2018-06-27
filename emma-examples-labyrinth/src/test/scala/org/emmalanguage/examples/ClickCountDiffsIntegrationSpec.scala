@@ -13,9 +13,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+package org.emmalanguage
+package examples
 
-package org.emmalanguage.labyrinth.operators;
+import api._
 
-public abstract class EquiJoin<IN, OUT, K> extends BagOperator<IN, OUT> {
-// TODO
+class ClickCountDiffsIntegrationSpec extends BaseClickCountDiffsIntegrationSpec with LabyrinthAware {
+
+  override def clickCountDiffs(baseInName: String, numDays: Int): Unit =
+    withDefaultFlinkStreamEnv(implicit flink => emma.onLabyrinth {
+      ClickCountDiffs(baseInName, numDays)
+    })
 }
