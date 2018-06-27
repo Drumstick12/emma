@@ -117,7 +117,7 @@ object SimpleCFWhileLoop {
       new ElementOrEventTypeInfo[labyrinth.util.Unit](Memo.typeInfoForType[labyrinth.util.Unit]))
       .addInput(x$1, true, false)
 
-    i.addInput(n1, false, false)
+    i.addInput(n1, false, true)
 
 
 

@@ -109,6 +109,10 @@ trait LabyrinthCompilerBase extends Compiler {
     out
   }
 
+  def isAlg(sTree: Option[u.Tree]) : Boolean = {
+    if (sTree.nonEmpty) isAlg(sTree.get) else false
+  }
+
   // check if a symbol refers to a function
   def isFun(sym: u.TermSymbol) = api.Sym.funs(sym.info.dealias.widen.typeSymbol)
   def isFun(sym: u.Symbol) = api.Sym.funs(sym.info.dealias.widen.typeSymbol)

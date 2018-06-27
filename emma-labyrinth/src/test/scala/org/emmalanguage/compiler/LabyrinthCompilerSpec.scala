@@ -477,8 +477,8 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
 
       val exp = reify {
         LabyStatics.registerCustomSerializer
-        LabyStatics.setTerminalBbid(1)
-        LabyStatics.setKickoffSource(1)
+        LabyStatics.setTerminalBbid(0)
+        LabyStatics.setKickoffSource(0)
         val a = () => 1
         LabyStatics.translateAll
         val env = implicitly[org.apache.flink.streaming.api.scala.StreamExecutionEnvironment]
@@ -497,12 +497,12 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
       val exp = reify {
 
         LabyStatics.registerCustomSerializer
-        LabyStatics.setTerminalBbid(1)
-        LabyStatics.setKickoffSource(1)
+        LabyStatics.setTerminalBbid(0)
+        LabyStatics.setKickoffSource(0)
         val a = new LabyNode[labyrinth.util.Nothing, Int](
           "fromNothing",
           ScalaOps.fromNothing[Int]( () => { val tmp = 1; tmp } ),
-          1,
+          0,
           new Always0[labyrinth.util.Nothing](1),
           null,
           new ElementOrEventTypeInfo[Int](Memo.typeInfoForType[Int])
@@ -527,14 +527,14 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
       val exp = reify {
 
         LabyStatics.registerCustomSerializer
-        LabyStatics.setTerminalBbid(1)
-        LabyStatics.setKickoffSource(1)
+        LabyStatics.setTerminalBbid(0)
+        LabyStatics.setKickoffSource(0)
         val n1 = new LabyNode[labyrinth.util.Nothing, Seq[Int]](
           "fromNothing",
           ScalaOps.fromNothing[Seq[Int]](() => {
             val tmp = Seq(1); tmp
           }),
-          1,
+          0,
           new Always0[labyrinth.util.Nothing](1),
           null,
           new ElementOrEventTypeInfo[Seq[Int]](Memo.typeInfoForType[Seq[Int]])
@@ -544,7 +544,7 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
         val n2 = new LabyNode[Seq[Int], Int](
           "fromSingSrcApply",
           ScalaOps.fromSingSrcApply[Int](),
-          1,
+          0,
           new Always0[Seq[Int]](1),
           null,
           new ElementOrEventTypeInfo[Int](Memo.typeInfoForType[Int])
@@ -571,15 +571,15 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
       val exp = reify {
 
         LabyStatics.registerCustomSerializer
-        LabyStatics.setTerminalBbid(1)
-        LabyStatics.setKickoffSource(1)
+        LabyStatics.setTerminalBbid(0)
+        LabyStatics.setKickoffSource(0)
 
         val n1 = new LabyNode[labyrinth.util.Nothing, Seq[Int]](
           "fromNothing",
           ScalaOps.fromNothing[Seq[Int]](() => {
             val tmp = Seq(1,2,3); tmp
           }),
-          1,
+          0,
           new Always0[labyrinth.util.Nothing](1),
           null,
           new ElementOrEventTypeInfo[Seq[Int]](Memo.typeInfoForType[Seq[Int]])
@@ -589,7 +589,7 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
         val n2 = new LabyNode[Seq[Int], Int](
           "fromSingSrcApply",
           ScalaOps.fromSingSrcApply[Int](),
-          1,
+          0,
           new Always0[Seq[Int]](1),
           null,
           new ElementOrEventTypeInfo[Int](Memo.typeInfoForType[Int])
@@ -600,7 +600,7 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
         val n3 = new LabyNode[Int, Int](
           "map",
           ScalaOps.map(x => add1(x)),
-          1,
+          0,
           new Always0[Int](1),
           null,
           new ElementOrEventTypeInfo[Int](Memo.typeInfoForType[Int])
@@ -626,8 +626,8 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
       val exp = reify {
 
         LabyStatics.registerCustomSerializer
-        LabyStatics.setTerminalBbid(1)
-        LabyStatics.setKickoffSource(1)
+        LabyStatics.setTerminalBbid(0)
+        LabyStatics.setKickoffSource(0)
 
         val n1 = new LabyNode[labyrinth.util.Nothing, Seq[Int]](
           "fromNothing",
@@ -635,7 +635,7 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
             val tmp = Seq(1, 2, 3);
             tmp
           }),
-          1,
+          0,
           new Always0[labyrinth.util.Nothing](1),
           null,
           new ElementOrEventTypeInfo[Seq[Int]](Memo.typeInfoForType[Seq[Int]])
@@ -645,7 +645,7 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
         val n2 = new LabyNode[Seq[Int], Int](
           "fromSingSrcApply",
           ScalaOps.fromSingSrcApply[Int](),
-          1,
+          0,
           new Always0[Seq[Int]](1),
           null,
           new ElementOrEventTypeInfo[Int](Memo.typeInfoForType[Int])
@@ -656,7 +656,7 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
         val n3 = new LabyNode[Int, Int](
           "map",
           ScalaOps.flatMapDataBagHelper(x => DataBag(Seq(0, add1(x)))),
-          1,
+          0,
           new Always0[Int](1),
           null,
           new ElementOrEventTypeInfo[Int](Memo.typeInfoForType[Int])
@@ -680,8 +680,8 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
       val exp = reify {
 
         LabyStatics.registerCustomSerializer
-        LabyStatics.setTerminalBbid(1)
-        LabyStatics.setKickoffSource(1)
+        LabyStatics.setTerminalBbid(0)
+        LabyStatics.setKickoffSource(0)
 
 
         val n1_1 = new LabyNode[labyrinth.util.Nothing, Seq[Int]](
@@ -689,7 +689,7 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
           ScalaOps.fromNothing[Seq[Int]](() => {
             val tmp = Seq(1,2,3); tmp
           }),
-          1,
+          0,
           new Always0[labyrinth.util.Nothing](1),
           null,
           new ElementOrEventTypeInfo[Seq[Int]](Memo.typeInfoForType[Seq[Int]])
@@ -699,7 +699,7 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
         val n1_2 = new LabyNode[Seq[Int], Int](
           "fromSingSrcApply",
           ScalaOps.fromSingSrcApply[Int](),
-          1,
+          0,
           new Always0[Seq[Int]](1),
           null,
           new ElementOrEventTypeInfo[Int](Memo.typeInfoForType[Int])
@@ -712,7 +712,7 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
           ScalaOps.fromNothing[Seq[String]](() => {
             val tmp = Seq("1","2","3"); tmp
           }),
-          1,
+          0,
           new Always0[labyrinth.util.Nothing](1),
           null,
           new ElementOrEventTypeInfo[Seq[String]](Memo.typeInfoForType[Seq[String]])
@@ -722,7 +722,7 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
         val n2_2 = new LabyNode[Seq[String], String](
           "fromSingSrcApply",
           ScalaOps.fromSingSrcApply[String](),
-          1,
+          0,
           new Always0[Seq[String]](1),
           null,
           new ElementOrEventTypeInfo[String](Memo.typeInfoForType[String])
@@ -733,7 +733,7 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
         val n1_3 = new LabyNode[Int, Either[Int,String]](
           "map",
           ScalaOps.map(i => scala.util.Left(i)),
-          1,
+          0,
           new Always0[Int](1),
           null,
           new ElementOrEventTypeInfo[Either[Int,String]](Memo.typeInfoForType[Either[Int,String]])
@@ -744,7 +744,7 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
         val n2_3 = new LabyNode[String, Either[Int,String]](
           "map",
           ScalaOps.map(s => scala.util.Right(s)),
-          1,
+          0,
           new Always0[String](1),
           null,
           new ElementOrEventTypeInfo[Either[Int,String]](Memo.typeInfoForType[Either[Int,String]])
@@ -755,7 +755,7 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
         val n_cross = new LabyNode[Either[Int, String], Tuple2[Int, String]](
           "cross",
           ScalaOps.cross[Int, String],
-          1,
+          0,
           new Always0[Either[Int,String]](1),
           null,
           new ElementOrEventTypeInfo[Tuple2[Int, String]](Memo.typeInfoForType[Tuple2[Int, String]])
@@ -783,15 +783,15 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
       val exp = reify {
 
         LabyStatics.registerCustomSerializer
-        LabyStatics.setTerminalBbid(1)
-        LabyStatics.setKickoffSource(1)
+        LabyStatics.setTerminalBbid(0)
+        LabyStatics.setKickoffSource(0)
 
         val n1 = new LabyNode[labyrinth.util.Nothing, Seq[Int]](
           "fromNothing",
           ScalaOps.fromNothing[Seq[Int]](() => {
             val tmp = Seq(1); tmp
           }),
-          1,
+          0,
           new Always0[labyrinth.util.Nothing](1),
           null,
           new ElementOrEventTypeInfo[Seq[Int]](Memo.typeInfoForType[Seq[Int]])
@@ -801,7 +801,7 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
         val n2 = new LabyNode[Seq[Int], Int](
           "fromSingSrcApply",
           ScalaOps.fromSingSrcApply[Int](),
-          1,
+          0,
           new Always0[Seq[Int]](1),
           null,
           new ElementOrEventTypeInfo[Int](Memo.typeInfoForType[Int])
@@ -814,7 +814,7 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
         val c = new LabyNode[Int, Long](
           "fold1",
           ScalaOps.foldAlgHelper(count),
-          1,
+          0,
           new Always0[Int](1),
           null,
           new ElementOrEventTypeInfo[Long](Memo.typeInfoForType[Long])
@@ -840,15 +840,15 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
       val exp = reify {
 
         LabyStatics.registerCustomSerializer
-        LabyStatics.setTerminalBbid(1)
-        LabyStatics.setKickoffSource(1)
+        LabyStatics.setTerminalBbid(0)
+        LabyStatics.setKickoffSource(0)
 
         val n1 = new LabyNode[labyrinth.util.Nothing, Seq[String]](
           "fromNothing",
           ScalaOps.fromNothing[Seq[String]](() => {
             val tmp = Seq("foo"); tmp
           }),
-          1,
+          0,
           new Always0[labyrinth.util.Nothing](1),
           null,
           new ElementOrEventTypeInfo[Seq[String]](Memo.typeInfoForType[Seq[String]])
@@ -858,7 +858,7 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
         val n2 = new LabyNode[Seq[String], String](
           "fromSingSrcApply",
           ScalaOps.fromSingSrcApply[String](),
-          1,
+          0,
           new Always0[Seq[String]](1),
           null,
           new ElementOrEventTypeInfo[String](Memo.typeInfoForType[String])
@@ -869,7 +869,7 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
         val c = new LabyNode[String, Int](
           "fold2",
           ScalaOps.fold(0, (s: String) => s.length, (a,b) => a + b),
-          1,
+          0,
           new Always0[String](1),
           null,
           new ElementOrEventTypeInfo[Int](Memo.typeInfoForType[Int])
@@ -955,15 +955,15 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
       val exp = reify {
 
         LabyStatics.registerCustomSerializer
-        LabyStatics.setTerminalBbid(1)
-        LabyStatics.setKickoffSource(1)
+        LabyStatics.setTerminalBbid(0)
+        LabyStatics.setKickoffSource(0)
 
         val n1 = new LabyNode[labyrinth.util.Nothing, String](
           "fromNothing",
           ScalaOps.fromNothing[String](() => {
             val tmp = "path"; tmp
           }),
-          1,
+          0,
           new Always0[labyrinth.util.Nothing](1),
           null,
           new ElementOrEventTypeInfo[String](Memo.typeInfoForType[String])
@@ -973,7 +973,7 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
         val n2 = new LabyNode[String, InputFormatWithInputSplit[String, FileInputSplit]](
           "inputSplits",
           ScalaOps.textSource,
-          1,
+          0,
           new Always0[String](1),
           null,
           new ElementOrEventTypeInfo[InputFormatWithInputSplit[String, FileInputSplit]](
@@ -986,7 +986,7 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
         val n3 = new LabyNode[InputFormatWithInputSplit[String, FileInputSplit], String](
           "readSplits",
           ScalaOps.textReader,
-          1,
+          0,
           new Always0[InputFormatWithInputSplit[String, FileInputSplit]](1),
           null,
           new ElementOrEventTypeInfo[String](Memo.typeInfoForType[String])
@@ -1017,15 +1017,15 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
       val exp = reify {
 
         LabyStatics.registerCustomSerializer
-        LabyStatics.setTerminalBbid(1)
-        LabyStatics.setKickoffSource(1)
+        LabyStatics.setTerminalBbid(0)
+        LabyStatics.setKickoffSource(0)
 
         val nData = new LabyNode[labyrinth.util.Nothing, Seq[Int]](
           "fromNothing",
           ScalaOps.fromNothing[Seq[Int]](() => {
             val tmp = Seq(1, 2); tmp
           }),
-          1,
+          0,
           new Always0[labyrinth.util.Nothing](1),
           null,
           new ElementOrEventTypeInfo[Seq[Int]](Memo.typeInfoForType[Seq[Int]])
@@ -1035,7 +1035,7 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
         val nDataFSS = new LabyNode[Seq[Int], Int](
           "fromSingSrcApply",
           ScalaOps.fromSingSrcApply[Int](),
-          1,
+          0,
           new Always0[Seq[Int]](1),
           null,
           new ElementOrEventTypeInfo[Int](Memo.typeInfoForType[Int])
@@ -1048,7 +1048,7 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
           ScalaOps.fromNothing[String](() => {
             val tmp = "path"; tmp
           }),
-          1,
+          0,
           new Always0[labyrinth.util.Nothing](1),
           null,
           new ElementOrEventTypeInfo[String](Memo.typeInfoForType[String])
@@ -1060,7 +1060,7 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
           ScalaOps.fromNothing[org.emmalanguage.io.csv.CSV](() => {
             val tmp = csvDummy; tmp
           }),
-          1,
+          0,
           new Always0[labyrinth.util.Nothing](1),
           null,
           new ElementOrEventTypeInfo[org.emmalanguage.io.csv.CSV](Memo.typeInfoForType[org.emmalanguage.io.csv.CSV])
@@ -1070,7 +1070,7 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
         val dataEither = new LabyNode[Int, Either[Int,org.emmalanguage.io.csv.CSV]](
           "map",
           ScalaOps.map(i => scala.util.Left(i)),
-          1,
+          0,
           new Always0[Int](1),
           null,
           new ElementOrEventTypeInfo[Either[Int,org.emmalanguage.io.csv.CSV]](
@@ -1083,7 +1083,7 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
         val csvEither = new LabyNode[org.emmalanguage.io.csv.CSV, Either[Int,org.emmalanguage.io.csv.CSV]](
           "map",
           ScalaOps.map(s => scala.util.Right(s)),
-          1,
+          0,
           new Always0[org.emmalanguage.io.csv.CSV](1),
           null,
           new ElementOrEventTypeInfo[Either[Int,org.emmalanguage.io.csv.CSV]](
@@ -1096,7 +1096,7 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
         val nToCsvString = new LabyNode[Either[Int, CSV], String](
           "toCsvString",
           ScalaOps.toCsvString[Int],
-          1,
+          0,
           new Always0[Either[Int, CSV]](1),
           null,
           new ElementOrEventTypeInfo[String](Memo.typeInfoForType[String])
@@ -1108,7 +1108,7 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
         val nStringSink = new LabyNode[String, Unit](
           "stringFileSink",
           ScalaOps.writeString,
-          1,
+          0,
           new Always0[String](1),
           null,
           new ElementOrEventTypeInfo[Unit](Memo.typeInfoForType[Unit])
@@ -1233,7 +1233,7 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
           .addInput(x$1, true, false)
           .setParallelism(1)
 
-        val addInp2 = iPhi.addInput(n1, false, false)
+        val addInp2 = iPhi.addInput(n1, false, true)
 
         LabyStatics.translateAll
         val env = implicitly[org.apache.flink.streaming.api.scala.StreamExecutionEnvironment]
