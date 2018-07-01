@@ -217,6 +217,12 @@ object ScalaOps {
   def cross[A,B]: BagOperator[Either[A, B], org.apache.flink.api.java.tuple.Tuple2[A, B]] =
     new Cross[A,B] {}
 
+  def joinScala[A,B,K](extrA: A => K, extrB: B => K): JoinScala[A,B,K] =
+    new JoinScala[A,B,K] {
+      override def keyExtr1(e: A) = extrA(e)
+      override def keyExtr2(e: B) = extrB(e)
+    }
+
   def singletonBagOperator[IN, OUT](f: IN => OUT): SingletonBagOperator[IN, OUT] = {
     new SingletonBagOperator[IN, OUT] {
       override def pushInElement(e: IN, logicalInputId: Int): Unit = {

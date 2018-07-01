@@ -23,7 +23,7 @@ import api.alg.Count
 import labyrinth._
 import labyrinth.operators._
 import labyrinth.partitioners._
-import org.emmalanguage.api.alg.Size
+import org.emmalanguage.api.alg.Reduce
 import org.emmalanguage.api.backend.LocalOps
 import org.emmalanguage.compiler.ir.DSCFAnnotations.loopBody
 import org.emmalanguage.compiler.ir.DSCFAnnotations.suffix
@@ -116,8 +116,26 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
       labyrinthNormalize.timed,
       Core.unnest,
       labyrinthLabynize.timed,
-      Core.unnest//,
-      //addContext
+      Core.unnest
+    ).compose(_.tree)
+  }
+
+  def fullPipeline(): u.Expr[Any] => u.Tree = {
+    pipeline(typeCheck = true)(
+      // lifting
+      Lib.expand,
+      Core.lift,
+      // optimizations
+      Core.cse,
+      Optimizations.foldFusion,
+      // backend
+      Comprehension.combine,
+      Core.unnest,
+      // labyrinth transformations
+      labyrinthNormalize,
+      Core.unnest,
+      labyrinthLabynize,
+      Core.unnest
     ).compose(_.tree)
   }
 
@@ -772,6 +790,115 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
       applyLabynization()(inp) shouldBe alphaEqTo(anfPipeline(exp))
     }
 
+    "equiJoin" in {
+      val inp = reify {
+        val db1 = DataBag(Seq("a", "bb", "ddd"))
+        val db2 = DataBag(Seq(2 , 5, 2))
+        val extrA = (t: String) => t.length
+        val extrB = (t: Int) => t
+        val dbc = equiJoin[String, Int, Int](extrA, extrB )(db1, db2)
+      }
+
+      val exp = reify {
+
+        LabyStatics.registerCustomSerializer
+        LabyStatics.setTerminalBbid(0)
+        LabyStatics.setKickoffSource(0)
+
+
+        val n1_1 = new LabyNode[labyrinth.util.Nothing, Seq[String]](
+          "fromNothing",
+          ScalaOps.fromNothing[Seq[String]](() => {
+            val tmp = Seq("a", "bb", "ddd"); tmp
+          }),
+          0,
+          new Always0[labyrinth.util.Nothing](1),
+          null,
+          new ElementOrEventTypeInfo[Seq[String]](Memo.typeInfoForType[Seq[String]])
+        )
+          .setParallelism(1)
+
+
+        val n1_2 = new LabyNode[Seq[String], String](
+          "fromSingSrcApply",
+          ScalaOps.fromSingSrcApply[String](),
+          0,
+          new Always0[Seq[String]](1),
+          null,
+          new ElementOrEventTypeInfo[String](Memo.typeInfoForType[String])
+        )
+          .addInput(n1_1, true, false)
+          .setParallelism(1)
+
+
+        val n2_1 = new LabyNode[labyrinth.util.Nothing, Seq[Int]](
+          "fromNothing",
+          ScalaOps.fromNothing[Seq[Int]](() => {
+            val tmp = Seq(2 , 5, 2); tmp
+          }),
+          0,
+          new Always0[labyrinth.util.Nothing](1),
+          null,
+          new ElementOrEventTypeInfo[Seq[Int]](Memo.typeInfoForType[Seq[Int]])
+        )
+          .setParallelism(1)
+
+        val n2_2 = new LabyNode[Seq[Int], Int](
+          "fromSingSrcApply",
+          ScalaOps.fromSingSrcApply[Int](),
+          0,
+          new Always0[Seq[Int]](1),
+          null,
+          new ElementOrEventTypeInfo[Int](Memo.typeInfoForType[Int])
+        )
+          .addInput(n2_1, true, false)
+          .setParallelism(1)
+
+        val extrA = (t: String) => t.length
+        val extrB = (t: Int) => t
+
+        val n1_3 = new LabyNode[String, Either[String, Int]](
+          "map",
+          ScalaOps.map(i => scala.util.Left(i)),
+          0,
+          new Always0[String](1),
+          null,
+          new ElementOrEventTypeInfo[Either[String, Int]](Memo.typeInfoForType[Either[String, Int]])
+        )
+          .addInput(n1_2, true, false)
+          .setParallelism(1)
+
+        val n2_3 = new LabyNode[Int, Either[String, Int]](
+          "map",
+          ScalaOps.map(s => scala.util.Right(s)),
+          0,
+          new Always0[Int](1),
+          null,
+          new ElementOrEventTypeInfo[Either[String, Int]](Memo.typeInfoForType[Either[String, Int]])
+        )
+          .addInput(n2_2, true, false)
+          .setParallelism(1)
+
+        val n_join = new LabyNode[Either[String, Int], (String,Int)](
+          "join",
+          ScalaOps.joinScala[String, Int, Int](extrA, extrB),
+          0,
+          new Always0[Either[String, Int]](1),
+          null,
+          new ElementOrEventTypeInfo[(String, Int)](Memo.typeInfoForType[(String, Int)])
+        )
+          .addInput(n1_3, true, false)
+          .addInput(n2_3, true, false)
+          .setParallelism(1)
+
+        LabyStatics.translateAll
+        val env = implicitly[org.apache.flink.streaming.api.scala.StreamExecutionEnvironment]
+        env.execute
+
+      }
+      applyLabynization()(inp) shouldBe alphaEqTo(anfPipeline(exp))
+    }
+
     "fold1" in {
       val inp = reify {
         val s = Seq(1)
@@ -884,67 +1011,6 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
 
       applyLabynization()(inp) shouldBe alphaEqTo(anfPipeline(exp))
     }
-
-    //    "foldGroup" in {
-    //      val inp = reify {
-    //        val fun$m6: () => String = (() => {
-    //          val lbda$m1: String = c.input;
-    //          lbda$m1
-    //        });
-    //        val db$m1: org.emmalanguage.api.DataBag[String] = DB.singSrc[String](fun$m6);
-    //        val db$m2: org.emmalanguage.api.DataBag[String] = DB.fromSingSrcReadText(db$m1);
-    //        val f$m1: String => org.emmalanguage.api.DataBag[String] = ((line$m1: String) => {
-    //          val anf$m3: String = line$m1.toLowerCase();
-    //          val anf$m4: Array[String] = anf$m3.split("\\W+");
-    //          val anf$m5: scala.collection.mutable.WrappedArray[String] = Predef.wrapRefArray[String](anf$m4);
-    //          val anf$m6: org.emmalanguage.api.DataBag[String] = DataBag.apply[String](anf$m5);
-    //          val p$m1: String => Boolean = ((word$m2: String) => {
-    //            val anf$m7: Boolean = word$m2.!=("");
-    //            anf$m7
-    //          });
-    //          val filtered$m1: org.emmalanguage.api.DataBag[String] = anf$m6.withFilter(p$m1);
-    //          filtered$m1
-    //        });
-    //        val fmapped$m1: org.emmalanguage.api.DataBag[String] = db$m2.flatMap[String](f$m1);
-    //        val f$m2: String => String = ((word$m2: String) => {
-    //          word$m2
-    //        });
-    //        val words$m1: org.emmalanguage.api.DataBag[String] = fmapped$m1.map[String](f$m2);
-    //        val fun$m4: String => String = ((x$m1: String) => {
-    //          val anf$m11: String = Predef.identity[String](x$m1);
-    //          anf$m11
-    //        });
-    //        val anf$m12: org.emmalanguage.api.DataBag[org.emmalanguage.api.Group[String,Long]] =
-    //          LocalOps.foldGroup[String, Long, String](words$m1, fun$m4, Size);
-    //        val f$m3: org.emmalanguage.api.Group[String,Long] => (String, Long) =
-    //          ((group$m1: org.emmalanguage.api.Group[String,Long]) => {
-    //            val anf$m13: String = group$m1.key;
-    //            val anf$m15: Long = group$m1.values;
-    //            val anf$m16: (String, Long) = scala.Tuple2.apply[String, Long](anf$m13, anf$m15);
-    //            anf$m16
-    //          });
-    //        val counts: org.emmalanguage.api.DataBag[(String, Long)] = anf$m12.map[(String, Long)](f$m3);
-    //        val fun$m7: () => String = (() => {
-    //          val lbda$m2: String = c.output;
-    //          lbda$m2
-    //        });
-    //        val db$m3: org.emmalanguage.api.DataBag[String] = DB.singSrc[String](fun$m7);
-    //        val fun$m8: () => org.emmalanguage.io.csv.CSV = (() => {
-    //          val lbda$m3: org.emmalanguage.io.csv.CSV = c.csv;
-    //          lbda$m3
-    //        });
-    //        val db$m4: org.emmalanguage.api.DataBag[org.emmalanguage.api.CSV] =
-    //          DB.singSrc[org.emmalanguage.api.CSV](fun$m8);
-    //        //        val db$m5: org.emmalanguage.api.DataBag[Unit] = DB.fromDatabagWriteCSV[(String, Long)](counts, db$m3, db$m4);
-    //        db$m4
-    //      }
-    //
-    //      val exp = reify {
-    //        val a = 1
-    //      }
-    //
-    //      applyOnlyLabynization()(inp) shouldBe alphaEqTo(anfPipeline(exp))
-    //    }
 
     "read Text" in {
       val inp = reify {
@@ -1242,6 +1308,37 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
       }
 
       applyLabynization()(inp) shouldBe alphaEqTo(anfPipeline(exp))
+    }
+
+    "clickc" in {
+      val inp = reify {
+        var yesterdayCounts: DataBag[(Int, Int)] = null
+        for (day <- 1 to 100) {
+          // Read all page-visits for this day
+          val visits: DataBag[Int] = DataBag.readText("XXXX" + day).map(Integer.parseInt) // integer pageIDs
+          // Count how many times each page was visited:
+          val counts: DataBag[(Int, Int)] = visits
+            .groupBy(i => i)
+            .map(group => (group.key, group.values.size.toInt))
+          // Compare to previous day (but skip the first day)
+          if (day != 1) {
+            // In the paper, this is actually an outer join
+            val diffs: DataBag[Int] =
+              for {
+                c <- counts
+                y <- yesterdayCounts
+                if c._1 == y._1
+              } yield Math.abs(c._2 - y._2)
+            val sum = diffs.fold(Reduce(0, (x: Int, y: Int) => x + y))
+            println(sum)
+          }
+          yesterdayCounts = counts
+        }
+      }
+
+      val exp = reify { val a = 1 }
+
+      fullPipeline()(inp) shouldBe alphaEqTo(anfPipeline(exp))
     }
 
   }

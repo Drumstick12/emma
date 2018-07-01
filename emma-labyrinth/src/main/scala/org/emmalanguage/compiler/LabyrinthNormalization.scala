@@ -33,6 +33,27 @@ trait LabyrinthNormalization extends LabyrinthCompilerBase {
     println(tree)
     println("==0tree END==")
 
+    def asdf(vd: u.Tree, lhs: u.TermSymbol, rhs: u.Tree, owner: u.Symbol) = {
+      val mett = !meta(vd).all.all.contains(SkipTraversal)
+      val seen = refsSeen(rhs, replacements)
+      val funn = !isFun(lhs)
+      val fun2 = !isFun(owner)
+      val allg = !isAlg(rhs)
+      val tmp = mett && seen && funn && fun2 && allg
+      true
+    }
+
+    def asdf2(pd: u.ValDef, ts: u.TermSymbol, owner: u.Symbol) = {
+      if (pd.toString().contains("yesterdayCounts")) {
+        val a = !(ts.info.typeConstructor =:= API.DataBag.tpe)
+        val b = !meta(pd).all.all.contains(SkipTraversal)
+        val c = !isFun(owner)
+        val zzz = a & b & c
+        println("ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ:", a, b, c)
+      }
+      true
+    }
+
     // first traversal does the labyrinth normalization. second for block type correction.
     val firstRun = api.TopDown.unsafe
       .withOwner
@@ -40,7 +61,7 @@ trait LabyrinthNormalization extends LabyrinthCompilerBase {
 
         // find a valdef - according to the rhs we have to do different transformations
         case Attr.inh(vd @ core.ValDef(lhs, rhs), owner :: _)
-          if prePrint(vd) && !meta(vd).all.all.contains(SkipTraversal)
+          if prePrint(vd) && asdf(vd, lhs, rhs, owner) && !meta(vd).all.all.contains(SkipTraversal)
             && refsSeen(rhs, replacements) && !isFun(lhs) && !isFun(owner) && !isAlg(rhs) =>
 
           // helper function to make sure that arguments in a "fromSingSrc"-method are indeed singSources
@@ -220,7 +241,7 @@ trait LabyrinthNormalization extends LabyrinthCompilerBase {
               val outTpe = targs.head
               val targsRepl = Seq(inTpe, outTpe)
 
-              val ndc =core.DefCall(Some(DB$.ref), DB$.fold1, targsRepl, Seq(Seq(tgtRepl, alg)))
+              val ndc = core.DefCall(Some(DB$.ref), DB$.fold1, targsRepl, Seq(Seq(tgtRepl, alg)))
               val ndcRefDef = valRefAndDef(owner, "fold1", ndc)
 
               val blockFinal = core.Let(Seq(ndcRefDef._2), Seq(), ndcRefDef._1)
@@ -518,20 +539,11 @@ trait LabyrinthNormalization extends LabyrinthCompilerBase {
           //postPrint(db)
           db
 
-        // if we find a valref in the tree whose def we changed to a databag, replace it by a valref refering to the
-        // new valdef
-        case Attr.inh(vr @ core.ValRef(sym), _) =>
-          if (prePrint(vr) && replacements.keys.toList.contains(sym)) {
-            val nvr = core.ValRef(replacements(sym))
-            skip(nvr)
-            nvr
-          } else {
-            vr
-          }
-
         // if we encounter a ParDef whose type is not DataBag (e.g. Int), databagify (e.g. DataBag[Int])
         case Attr.inh(pd @ core.ParDef(ts, _), owner::_)
-          if !(ts.info =:= API.DataBag.tpe) && !meta(pd).all.all.contains(SkipTraversal) && !isFun(owner) =>
+          if asdf2(pd, ts, owner) && !(ts.info.typeConstructor =:= API.DataBag.tpe)
+            && !meta(pd).all.all.contains(SkipTraversal)
+            && !isFun(owner) =>
           val nts = api.ParSym(
             owner,
             api.TermName.fresh("arg"),
@@ -542,12 +554,33 @@ trait LabyrinthNormalization extends LabyrinthCompilerBase {
           replacements += (ts -> nts)
           npd
 
+        // if we find a ref in the tree whose def we changed to a databag, replace it by a ref refering to the
+        // new def
+        case Attr.inh(vr @ core.ValRef(sym), _) =>
+          if (prePrint(vr) && replacements.keys.toList.contains(sym)) {
+            val nvr = core.ValRef(replacements(sym))
+            skip(nvr)
+            nvr
+          } else {
+            vr
+          }
+        case Attr.inh(vr @ core.ParRef(sym), _) =>
+          if (prePrint(vr) && replacements.keys.toList.contains(sym)) {
+            val nvr = core.ParRef(replacements(sym))
+            skip(nvr)
+            nvr
+          } else {
+            vr
+          }
+
+        case Attr.inh(vd @ core.ValDef(lhs, rhs), owner :: _) if isAlg(rhs) =>
+          replacements += (lhs -> lhs)
+          vd
+
         // if we encounter a letblock whose expr is a DefCall with literals as arguments, create valdefs for literals,
         // prepend to valdefs of the letblock and replace DefCall args with references
         case Attr.inh(lb @ core.Let(valDefs, defDefs, core.DefCall(tgt, ms, targs, args)), owner :: _)
           if argsContainLiterals(args) =>
-
-          println(lb)
 
           var tmpDefs = Seq[u.ValDef]()
           val argsRepl = args.map{
