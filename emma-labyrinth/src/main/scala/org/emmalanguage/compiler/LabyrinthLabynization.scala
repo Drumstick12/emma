@@ -17,19 +17,12 @@
 package org.emmalanguage
 package compiler
 
-import labyrinth.operators.ScalaOps
 import labyrinth.partitioners._
 import labyrinth.operators.InputFormatWithInputSplit
-import org.emmalanguage.api.Group
-import org.emmalanguage.labyrinth.LabyNode
+import api.Group
 
-import org.apache.flink.api.common.typeinfo.TypeInformation
-import org.apache.flink.api.java.typeutils.TypeExtractor
-import org.apache.flink.api.scala.typeutils.TypeUtils
 import org.apache.flink.core.fs.FileInputSplit
 import shapeless.::
-
-import scala.runtime.Nothing$
 
 trait LabyrinthLabynization extends LabyrinthCompilerBase {
 
@@ -42,8 +35,11 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
     // println(tree)
     // println("!!!!!!!!!!!!!!!!!!!!!! 0tree End !!!!!!!!!!!!!!!!!!!!!!!")
 
+    // Define a name for the enclosing block ("enclosingOwner"). This is a little hack the easily get all basic block
+    // dependencies.
     val outerTermName = api.TermName.fresh("OUTER")
     val outerToEncl = Map(outerTermName.toString -> enclosingOwner.name.toString)
+    // Returns the name of a termsymbol. Replaces it by `enclosingOwner` if it is the previously defined outer name.
     def name(ts: u.TermSymbol): String = {
       if (outerToEncl.keys.toList.contains(ts.name.toString)) {
         outerToEncl(ts.name.toString)
@@ -52,7 +48,7 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
       }
     }
 
-    // wrap outer block into dummy defdef to get all basic block affiliations
+    // wrap outer block into dummy defdef to get all basic block affiliations (little hack, see above)
     val wraptree = tree match {
       case lt @ core.Let(_,_,_) => {
         val owner = enclosingOwner
@@ -69,15 +65,16 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
     }
 
     // ---> get control flow info ---> //
+    // ControlFlow returns some nice info; extracted the necessary info for later use.
     val G = ControlFlow.cfg(wraptree)
     val bbParents = G.ctrl.edges.map(e => name(e.from)).toSet
     val bbChildren = G.ctrl.edges.map(e => name(e.to)).toSet
-    // bbids
+    // define bbids
     val bbIdMap = scala.collection.mutable.Map[String, Int]()
     bbIdMap += (enclosingOwner.name.toString -> 0)
     var idCounter = 1
     bbChildren.foreach( e => { bbIdMap += (e -> idCounter); idCounter += 1 })
-    // define dependencies
+    // define dependencies (parent to list of children)
     val gDependencies = scala.collection.mutable.Map[String, Seq[String]]()
     G.ctrl.edges.foreach(n =>
       if (!gDependencies.keys.toList.contains(name(n.from))) { gDependencies += (name(n.from) -> Seq(name(n.to))) }
@@ -85,7 +82,7 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
     )
     val gBbDependencies = scala.collection.mutable.Map[Int, Seq[Int]]()
     gDependencies.keys.foreach(k => gBbDependencies += (bbIdMap(k) -> gDependencies(k).map(bbIdMap(_))) )
-    // number of outgoing edges
+    // count number of outgoing edges for each basic block
     val bbIdNumOut = scala.collection.mutable.Map[Int, Int]()
     gDependencies.keys.foreach(n => bbIdNumOut += (bbIdMap(n) -> gDependencies(n).size))
 
@@ -96,18 +93,18 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
         Seq(start) ++ gBbDependencies(start).flatMap( id => bbIdShortcut(id) )
       }
     }
-    // <--- ofni wolf lortnoc teg <--- //
+    // <--- ofni wolf lortnoc teg <--- // (magical incantation to prevent program crashes)
 
     // transformation helpers
     val replacements = scala.collection.mutable.Map[u.TermSymbol, u.TermSymbol]()
-    val symToPhiRef = scala.collection.mutable.Map[u.TermSymbol, u.Ident]()
     // here we have to use names because we need mapping from different blocks during the transformation and we
     // generate new symbols during pattern matching (should be no problem though, as they are unique after lifting)
     val defSymNameToPhiRef = scala.collection.mutable.Map[String, Seq[Seq[u.Ident]]]()
 
+    // All val defs we gather during traversal. Added into a single letblock later.
     var valDefsFinal = Seq[u.ValDef]()
 
-    // first traversal does the labyrinth labynization. second for block type correction.
+    // Traversal to create LabyNodes and all necessary ValDefs
     api.TopDown
       .withOwner
       .traverseWith {
@@ -1051,8 +1048,6 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
 
                 // save mapping from ParRef to PhiNode for later addInput
                 replacements += (sym -> phiSym)
-                symToPhiRef += (sym -> phiDCRefDef._1)
-                // defSymNameToPhiRef += (dd.symbol.name.toString -> phiDCRefDef._1)
 
                 // prepend valdefs to body letblock and return letblock
                 Seq(partPhiRefDef, typeInfoRefDef, elementOrEventTypeInfoRefDef, phiDCRefDef)
@@ -1173,9 +1168,11 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
 
       }._tree(tree)
 
+    // create a flat LetBlock with all ValDefs without any nesting or control flow
     val flatTrans = core.Let(valDefsFinal)
 
-    // add Labyrinth statics
+    // add Labyrinth statics to beginning and end of code respectively
+    // kickoffsources, rgister custom serializer, terminal basic block, call translateAll, execute
     val labyStaticsTrans = flatTrans match {
       case core.Let(valdefs, _, _) => {
         val owner = enclosingOwner
@@ -1226,6 +1223,10 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
     // postPrint(labyStaticsTrans)
     labyStaticsTrans
   })
+
+  // =======================
+  // some helper functions to avoid (even more) repetition of code
+  // =======================
 
   def getTypeInfoForTypeRefDef(owner: u.Symbol, tpe: u.Type): (u.Ident, u.ValDef) = {
     val typeInfoOUTVDrhs = core.DefCall(

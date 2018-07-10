@@ -1276,17 +1276,7 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
 
       applyLabynization()(inp) shouldBe alphaEqTo(anfPipeline(exp))
     }
-
-
-    // foreach to while bug
-    // for(day <- 1 to 5) {
-    //   if (day != 1) {
-    //     println
-    //   } else {
-    //     println("foo")
-    //   }
-    // }
-
+    
   }
 
   def expandAndAnf(t: u.Tree) : u.Tree = {
