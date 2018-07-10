@@ -1342,6 +1342,29 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
       fullPipeline()(inp) shouldBe alphaEqTo(anfPipeline(exp))
     }
 
+    "clickcasdf" in {
+      val inp = reify {
+//        for(day <- 1 to 5) {
+//          if (day != 1) {
+//            println
+//          } else {
+//            println("foo")
+//          }
+//        }
+        var day = 1
+        while (day < 5) {
+          if (day != 1) {
+            println
+          } else {
+          }
+        }
+      }
+
+      val exp = reify { val a = 1 }
+
+      fullPipeline()(inp) shouldBe alphaEqTo(anfPipeline(exp))
+    }
+
   }
 
   def expandAndAnf(t: u.Tree) : u.Tree = {

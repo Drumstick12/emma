@@ -76,7 +76,7 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
     val bbIdMap = scala.collection.mutable.Map[String, Int]()
     bbIdMap += (enclosingOwner.name.toString -> 0)
     var idCounter = 1
-    bbChildren.foreach( e => { bbIdMap += (e -> idCounter); idCounter += 1 })
+    (bbParents ++ bbChildren).foreach( e => { bbIdMap += (e -> idCounter); idCounter += 1 })
     // define dependencies
     val gDependencies = scala.collection.mutable.Map[String, Seq[String]]()
     G.ctrl.edges.foreach(n =>
@@ -1720,6 +1720,11 @@ object Memo {
     memoizeTypeInfo(implicitly[org.emmalanguage.api.Meta[java.math.BigInteger]], createTypeInformation)
     memoizeTypeInfo(implicitly[org.emmalanguage.api.Meta[java.math.BigDecimal]], createTypeInformation)
     // Used Types (should probably be removed later)
+    memoizeTypeInfo(implicitly[org.emmalanguage.api.Meta[org.emmalanguage.api.Group[Int,Long]]], createTypeInformation)
+    memoizeTypeInfo(implicitly[org.emmalanguage.api.Meta[Iterator[Int]]], createTypeInformation)
+    memoizeTypeInfo(implicitly[org.emmalanguage.api.Meta[scala.runtime.RichInt]], createTypeInformation)
+    memoizeTypeInfo(implicitly[org.emmalanguage.api.Meta[collection.immutable.Range.Inclusive]], createTypeInformation)
+    memoizeTypeInfo(implicitly[org.emmalanguage.api.Meta[(Int, Int)]], createTypeInformation)
     memoizeTypeInfo(implicitly[org.emmalanguage.api.Meta[labyrinth.util.Nothing]], createTypeInformation)
     memoizeTypeInfo(implicitly[org.emmalanguage.api.Meta[Seq[Int]]], createTypeInformation)
     memoizeTypeInfo(implicitly[org.emmalanguage.api.Meta[Seq[String]]], createTypeInformation)
@@ -1728,6 +1733,14 @@ object Memo {
     memoizeTypeInfo(implicitly[org.emmalanguage.api.Meta[org.emmalanguage.api.CSV]], createTypeInformation)
     memoizeTypeInfo(
       implicitly[org.emmalanguage.api.Meta[scala.util.Either[(String, Long),org.emmalanguage.io.csv.CSV]]],
+      createTypeInformation
+    )
+    memoizeTypeInfo(
+      implicitly[org.emmalanguage.api.Meta[scala.util.Either[(Int, Int),(Int, Int)]]],
+      createTypeInformation
+    )
+    memoizeTypeInfo(
+      implicitly[org.emmalanguage.api.Meta[((Int, Int), (Int, Int))]],
       createTypeInformation
     )
     memoizeTypeInfo(implicitly[org.emmalanguage.api.Meta[(String, Long)]], createTypeInformation)

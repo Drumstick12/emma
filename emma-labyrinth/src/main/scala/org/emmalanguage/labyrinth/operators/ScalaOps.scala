@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 package org.emmalanguage
-package labyrinth.operators;
+package labyrinth.operators
 
 import api.DataBag
 import api.alg.Alg
@@ -312,9 +312,27 @@ object ScalaOps {
 
   def condNode(trueBbIds: Seq[Int], falseBbIds: Seq[Int])
   : BagOperator[Boolean, org.emmalanguage.labyrinth.util.Unit] = {
-    new ConditionNodeScala(trueBbIds.toArray, falseBbIds.toArray)
+    new ConditionNodeScalaReally(trueBbIds.toArray, falseBbIds.toArray)
   }
 }
+
+
+
+class ConditionNodeScalaReally(val trueBranchBbIds: Array[Int], val falseBranchBbIds: Array[Int])
+  extends SingletonBagOperator[Boolean, labyrinth.util.Unit] {
+
+  def this(trueBranchBbId: Int, falseBranchBbId: Int) {
+    this(Array[Int](trueBranchBbId), Array[Int](falseBranchBbId))
+  }
+
+  override def pushInElement(e: Boolean, logicalInputId: Int): Unit = {
+    super.pushInElement(e, logicalInputId)
+    for (b <- if (e) trueBranchBbIds else falseBranchBbIds) {
+      out.appendToCfl(b)
+    }
+  }
+}
+
 
 object LabyStatics {
   def translateAll(implicit env: StreamExecutionEnvironment): Unit = LabyNode.translateAll(env.getJavaEnv)
@@ -328,6 +346,6 @@ object LabyStatics {
     new ElementOrEvent.ElementOrEventSerializerFactory)
 
   def phi[T](name: String, bbId: Int, inputPartitioner: Partitioner[T],
-    inSer: TypeSerializer[T], typeInfo: TypeInformation[ElementOrEvent[T]]): LabyNode[T, T] =
+    inSer: TypeSerializer[T], typeInfo: TypeInformation[ElementOrEvent[T]]) =
     LabyNode.phi(name, bbId, inputPartitioner, inSer, typeInfo)
 }

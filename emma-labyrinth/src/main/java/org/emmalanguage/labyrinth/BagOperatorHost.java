@@ -860,19 +860,22 @@ public class BagOperatorHost<IN, OUT>
 		private ElementOrEvent<OUT> reuseEleOrEvent = new ElementOrEvent<>();
 
 		void sendElement(OUT e) {
-			short part = partitioner.getPart(e, subpartitionId);
-			if (part != -1) {
-				// (Amugy ez a logika meg van duplazva a Bagify-ban is most, de ott nincs berakva a -1 (broadcast) kezelese)
-				if (!sentStart[part]) {
-					sendStart(part);
+			synchronized (BagOperatorHost.this) {
+				short part = partitioner.getPart(e, subpartitionId);
+				if (part != -1) {
+					// (Amugy ez a logika meg van duplazva a Bagify-ban is most, de ott nincs berakva a -1 (broadcast) kezelese)
+					if (!sentStart[part]) {
+						sendStart(part);
+					}
+				} else {
+					broadcastStart();
 				}
-			} else {
-				broadcastStart();
-			}
-			if (CFLConfig.vlog) LOG.info("Out("+ splitId + ") of {" + name + "}[" + BagOperatorHost.this.subpartitionId + "] sending element to " + part + ": " + new ElementOrEvent<>(subpartitionId, e, splitId, part));
+				if (CFLConfig.vlog)
+					LOG.info("Out(" + splitId + ") of {" + name + "}[" + BagOperatorHost.this.subpartitionId + "] sending element to " + part + ": " + new ElementOrEvent<>(subpartitionId, e, splitId, part));
 
-			//output.collect(new StreamRecord<>(new ElementOrEvent<>(subpartitionId, e, splitId, part), 0));
-			output.collect(reuseStreamRecord.replace(reuseEleOrEvent.replace(subpartitionId, e, splitId, part), 0));
+				//output.collect(new StreamRecord<>(new ElementOrEvent<>(subpartitionId, e, splitId, part), 0));
+				output.collect(reuseStreamRecord.replace(reuseEleOrEvent.replace(subpartitionId, e, splitId, part), 0));
+			}
 		}
 
 		void broadcastStart() {
@@ -897,16 +900,22 @@ public class BagOperatorHost<IN, OUT>
 		}
 
 		private void sendStart(short part) {
-			sentStart[part] = true;
-			ElementOrEvent.Event event = new ElementOrEvent.Event(ElementOrEvent.Event.Type.START, partitioner.targetPara, new BagID(outCFLSize, opID));
-			if (CFLConfig.vlog) LOG.info("Out("+ splitId + ") of {" + name + "}[" + BagOperatorHost.this.subpartitionId + "] sending START to " + part + ": " + new ElementOrEvent<>(subpartitionId, event, splitId, part));
-			output.collect(new StreamRecord<>(new ElementOrEvent<>(subpartitionId, event, splitId, part), 0));
+			synchronized (BagOperatorHost.this) {
+				sentStart[part] = true;
+				ElementOrEvent.Event event = new ElementOrEvent.Event(ElementOrEvent.Event.Type.START, partitioner.targetPara, new BagID(outCFLSize, opID));
+				if (CFLConfig.vlog)
+					LOG.info("Out(" + splitId + ") of {" + name + "}[" + BagOperatorHost.this.subpartitionId + "] sending START to " + part + ": " + new ElementOrEvent<>(subpartitionId, event, splitId, part));
+				output.collect(new StreamRecord<>(new ElementOrEvent<>(subpartitionId, event, splitId, part), 0));
+			}
 		}
 
 		private void sendEnd(short part) {
-			if (CFLConfig.vlog) LOG.info("Out("+ splitId + ") of {" + name + "}[" + BagOperatorHost.this.subpartitionId + "] sending END to " + part);
-			ElementOrEvent.Event event = new ElementOrEvent.Event(ElementOrEvent.Event.Type.END, partitioner.targetPara, new BagID(outCFLSize, opID));
-			output.collect(new StreamRecord<>(new ElementOrEvent<>(subpartitionId, event, splitId, part), 0));
+			synchronized (BagOperatorHost.this) {
+				if (CFLConfig.vlog)
+					LOG.info("Out(" + splitId + ") of {" + name + "}[" + BagOperatorHost.this.subpartitionId + "] sending END to " + part);
+				ElementOrEvent.Event event = new ElementOrEvent.Event(ElementOrEvent.Event.Type.END, partitioner.targetPara, new BagID(outCFLSize, opID));
+				output.collect(new StreamRecord<>(new ElementOrEvent<>(subpartitionId, event, splitId, part), 0));
+			}
 		}
 	}
 

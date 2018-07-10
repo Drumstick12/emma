@@ -23,9 +23,34 @@ object ClickCountDiffs {
 
   def apply(baseInName: String, numDays: Int): Unit = {
 
+    //    // (no join with pageAttributes yet)
+    //    var yesterdayCounts: DataBag[(Int, Int)] = DataBag.empty
+    //    for(day <- 1 to numDays) {
+    //      // Read all page-visits for this day
+    //      val visits: DataBag[Int] = DataBag.readText(baseInName + day).map(Integer.parseInt) // integer pageIDs
+    //      // Count how many times each page was visited:
+    //      val counts: DataBag[(Int, Int)] = visits
+    //        .groupBy(identity)
+    //        .map(group => (group.key, group.values.size.toInt))
+    //      // Compare to previous day (but skip the first day)
+    //      if (day != 1) {
+    //        // In the paper, this is actually an outer join
+    //        val diffs: DataBag[Int] =
+    //          for {
+    //            c <- counts
+    //            y <- yesterdayCounts
+    //            if c._1 == y._1
+    //          } yield Math.abs(c._2 - y._2)
+    //        val sum = diffs.reduce(0)((x: Int, y: Int) => x + y)
+    //        println(sum) //TODO: use writeFile instead
+    //      }
+    //      yesterdayCounts = counts
+    //    }
+
     // (no join with pageAttributes yet)
     var yesterdayCounts: DataBag[(Int, Int)] = DataBag.empty
-    for(day <- 1 to numDays) {
+    var day = 1
+    while (day < numDays) {
       // Read all page-visits for this day
       val visits: DataBag[Int] = DataBag.readText(baseInName + day).map(Integer.parseInt) // integer pageIDs
       // Count how many times each page was visited:
@@ -45,6 +70,7 @@ object ClickCountDiffs {
         println(sum) //TODO: use writeFile instead
       }
       yesterdayCounts = counts
+      day += 1
     }
 
   }
