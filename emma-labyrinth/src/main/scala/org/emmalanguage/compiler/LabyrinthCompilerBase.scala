@@ -162,13 +162,13 @@ trait LabyrinthCompilerBase extends Compiler {
     lazy val sym = api.Sym[DB.type].asModule
 
     val collect = op("collect")
-    val singSrc = op("singSrc")
     val fold1 = op("fold1")
     val fold2 = op("fold2")
     val fromSingSrcApply = op("fromSingSrcApply")
     val fromSingSrcReadText = op("fromSingSrcReadText")
     val fromSingSrcReadCSV = op("fromSingSrcReadCSV")
     val fromDatabagWriteCSV = op("fromDatabagWriteCSV")
+    val singSrc = op("singSrc")
 
     val cross3 = op("cross3")
 

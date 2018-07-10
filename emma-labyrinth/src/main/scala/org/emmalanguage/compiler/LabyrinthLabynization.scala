@@ -103,7 +103,7 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
     val symToPhiRef = scala.collection.mutable.Map[u.TermSymbol, u.Ident]()
     // here we have to use names because we need mapping from different blocks during the transformation and we
     // generate new symbols during pattern matching (should be no problem though, as they are unique after lifting)
-    val defSymNameToPhiRef = scala.collection.mutable.Map[String, u.Ident]()
+    val defSymNameToPhiRef = scala.collection.mutable.Map[String, Seq[Seq[u.Ident]]]()
 
     var valDefsFinal = Seq[u.ValDef]()
 
@@ -117,6 +117,48 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
           if prePrint(vd) && !isFun(lhs) && !isFun(owner) && !isAlg(rhs) => {
 
           rhs match {
+            case dc @ core.DefCall(_,  DataBag$.empty, Seq(targ), _) if prePrint(dc) =>
+
+              val bagOp = core.DefCall(Some(ScalaOps$.ref), ScalaOps$.empty, Seq(targ), Seq())
+              val bagOpRefDef = valRefAndDef(owner, "emptyOp", bagOp)
+
+              // partitioner
+              val targetPara = 1
+              val partVDrhs = core.Inst(
+                getTpe[Always0[Any]],
+                Seq(getTpe[labyrinth.util.Nothing]),
+                Seq(Seq(core.Lit(targetPara)))
+              )
+              val partRefDef = valRefAndDef(owner, "partitioner", partVDrhs)
+
+              // typeinfo OUT
+              val typeInfoOUTRefDef = getTypeInfoForTypeRefDef(owner, targ)
+
+              // ElementOrEventTypeInfo
+              val elementOrEventTypeInfoRefDef = getElementOrEventTypeInfoRefDef(owner, targ, typeInfoOUTRefDef._1)
+
+              // LabyNode
+              val labyNodeRefDef = getLabyNodeRefDef(
+                owner,
+                (getTpe[labyrinth.util.Nothing], targ),
+                "empty",
+                bagOpRefDef._1,
+                bbIdMap(owner.name.toString),
+                partRefDef._1,
+                elementOrEventTypeInfoRefDef._1
+              )
+
+              // setParallelism
+              val SetParallelismRefDefSym = getSetParallelismRefDefSym(owner, labyNodeRefDef._1, 1)
+
+              // put everything into a block
+              valDefsFinal = valDefsFinal ++
+                Seq(bagOpRefDef._2, partRefDef._2, typeInfoOUTRefDef._2,
+                  elementOrEventTypeInfoRefDef._2, labyNodeRefDef._2, SetParallelismRefDefSym._2)
+              replacements += (lhs -> SetParallelismRefDefSym._3)
+              skip(dc)
+              ()
+
             case dc @ core.DefCall(_, DB$.fromSingSrcReadText, _, Seq(Seq(core.ValRef(dbPathSym)))) if prePrint(dc) =>
               val dbPathSymRepl = replacements(dbPathSym)
               val dbPathSymReplRef = core.ValRef(dbPathSymRepl)
@@ -277,7 +319,7 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
                 Seq(targ),
                 Seq(Seq())
               )
-              val bagOpRefDef = valRefAndDef(owner, "fromSingSrcApply", bagOpVDrhs)
+              val bagOpRefDef = valRefAndDef(owner, "fromSingSrcApplyOp", bagOpVDrhs)
 
               val inTpe = singSrcDBsym.info.typeArgs.head
 
@@ -339,7 +381,7 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
                 Seq(inTpe, outTpe),
                 Seq(Seq(lbdaRef))
               )
-              val bagOpRefDef = valRefAndDef(owner, "fromSingSrcApply", bagOpVDrhs)
+              val bagOpRefDef = valRefAndDef(owner, "mapOp", bagOpVDrhs)
 
               // partitioner
               val targetPara = 1
@@ -399,7 +441,7 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
                 Seq(inTpe, outTpe),
                 Seq(Seq(lbdaRef))
               )
-              val bagOpRefDef = valRefAndDef(owner, "fromSingSrcApply", bagOpVDrhs)
+              val bagOpRefDef = valRefAndDef(owner, "mapOp", bagOpVDrhs)
 
               // partitioner
               val targetPara = 1
@@ -459,7 +501,7 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
                 Seq(inTpe, outTpe),
                 Seq(Seq(lbdaRef))
               )
-              val bagOpRefDef = valRefAndDef(owner, "fromSingSrcApply", bagOpVDrhs)
+              val bagOpRefDef = valRefAndDef(owner, "flatMapOp", bagOpVDrhs)
 
               // partitioner
               val targetPara = 1
@@ -480,7 +522,7 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
               val labyNodeRefDef = getLabyNodeRefDef(
                 owner,
                 (inTpe, outTpe),
-                "map",
+                "flatMap",
                 bagOpRefDef._1,
                 bbIdMap(owner.name.toString),
                 partRefDef._1,
@@ -519,7 +561,7 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
                 Seq(inTpe, outTpe),
                 Seq(Seq(lbdaRef))
               )
-              val bagOpRefDef = valRefAndDef(owner, "fromSingSrcApply", bagOpVDrhs)
+              val bagOpRefDef = valRefAndDef(owner, "mapOp", bagOpVDrhs)
 
               // partitioner
               val targetPara = 1
@@ -579,7 +621,7 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
                 Seq(inTpe, outTpe),
                 Seq(Seq(lbdaRef))
               )
-              val bagOpRefDef = valRefAndDef(owner, "fromSingSrcApply", bagOpVDrhs)
+              val bagOpRefDef = valRefAndDef(owner, "flatMapOp", bagOpVDrhs)
 
               // partitioner
               val targetPara = 1
@@ -665,21 +707,21 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
               // typeinfo OUT
               val typeInfoMapCrossOUTRefDef = getTypeInfoForTypeRefDef(
                 owner,
-                api.Type.apply(getTpe[org.apache.flink.api.java.tuple.Tuple2[Any,Any]], Seq(tpeA, tpeB))
+                api.Type.apply(getTpe[(Any,Any)], Seq(tpeA, tpeB))
               )
 
               // ElementOrEventTypeInfo
               val elementOrEventTypeInfoCrossRefDef =
                 getElementOrEventTypeInfoRefDef(
                   owner,
-                  api.Type.apply(getTpe[org.apache.flink.api.java.tuple.Tuple2[Any,Any]], Seq(tpeA, tpeB)),
+                  api.Type.apply(getTpe[(Any,Any)], Seq(tpeA, tpeB)),
                   typeInfoMapCrossOUTRefDef._1)
 
               // LabyNode
               val labyNodeCrossRefDef = getLabyNodeRefDef(
                 owner,
                 (api.Type.apply(getTpe[scala.util.Either[Any,Any]], Seq(tpeA, tpeB)),
-                  api.Type.apply(getTpe[org.apache.flink.api.java.tuple.Tuple2[Any,Any]], Seq(tpeA, tpeB))),
+                  api.Type.apply(getTpe[(Any,Any)], Seq(tpeA, tpeB))),
                 "cross",
                 bagOpCrossRefDef._1,
                 bbIdMap(owner.name.toString),
@@ -736,9 +778,6 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
               val db1refDefs = toEither(owner, bbIdMap, tpeA, tpeB, db1ReplSym, db1ReplRef, leftTRightF = true)
 
               // db2 to Right()
-              println(replacements)
-              println(symToPhiRef)
-              println(defSymNameToPhiRef)
               val db2ReplSym = replacements(db2Sym)
               val db2ReplRef = core.ValRef(db2ReplSym)
               val db2refDefs = toEither(owner, bbIdMap, tpeA, tpeB, db2ReplSym, db2ReplRef, leftTRightF = false)
@@ -1151,16 +1190,14 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
           val bbid = bbIdMap(dd.symbol.name.toString)
 
           // create a phinode for every parameter
-          val phiDefs = pars.map(
-            s => s.flatMap{
+          val phiAllRefDefs = pars.map(
+            s => s.map{
               case pd @ core.ParDef(sym, _) =>
 
                 val tpeOut = sym.info.typeArgs.head
-                println("YYYYYYYYYYYYYYYYYYYYYYYYYY", tpeOut)
 
                 // phinode name
-                val phinodeName = sym.name + "Phi"
-                val nmLit = core.Lit(phinodeName)
+                val nmLit = core.Lit(sym.name + "Phi")
 
                 // phinode bbid
                 val bbidLit = core.Lit(bbid)
@@ -1195,21 +1232,24 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
                   Seq(tpeOut),
                   Seq(Seq(nmLit, bbidLit, partPhiRefDef._1, inserLit, elementOrEventTypeInfoRefDef._1))
                 )
-                val phiSym = newValSym(dd.symbol, phinodeName, phiDC)
+                val phiSym = newValSym(dd.symbol, "phiNode", phiDC)
                 val phiDCRefDef = valRefAndDef(phiSym, phiDC)
 
                 // save mapping from ParRef to PhiNode for later addInput
                 replacements += (sym -> phiSym)
                 symToPhiRef += (sym -> phiDCRefDef._1)
-                defSymNameToPhiRef += (dd.symbol.name.toString -> phiDCRefDef._1)
+                // defSymNameToPhiRef += (dd.symbol.name.toString -> phiDCRefDef._1)
 
                 // prepend valdefs to body letblock and return letblock
-                Seq(partPhiRefDef._2, typeInfoRefDef._2, elementOrEventTypeInfoRefDef._2, phiDCRefDef._2)
+                Seq(partPhiRefDef, typeInfoRefDef, elementOrEventTypeInfoRefDef, phiDCRefDef)
             })
+
+          val argPhis = phiAllRefDefs.map( s => s.map( ss => ss.last._1 ) )
+          defSymNameToPhiRef += (dd.symbol.name.toString -> argPhis)
 
           // prepend new defdefs to old defdefs
           var nDefs = Seq[u.ValDef]()
-          phiDefs.foreach(s => nDefs = nDefs ++ s)
+          phiAllRefDefs.foreach(s => nDefs = nDefs ++ s.flatMap(ss => ss.map(refDef => refDef._2)))
           valDefsFinal = valDefsFinal ++ nDefs
 
         // create condNode when encountering if statements
@@ -1290,23 +1330,50 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
 
           val insideBlock = false
 
-          var addInputRefs = Seq[u.Ident]()
-          val addInputDefs = args.flatMap(
-            s => s.map{
-              case core.ParRef(sym) =>
-                val phiRef = defSymNameToPhiRef(dc.symbol.name.toString)
-                val addInp = getAddInputRefDef(owner, phiRef, core.ParRef(replacements(sym)), insideBlock)
-                addInputRefs = addInputRefs :+ addInp._1
-                addInp._2
-              case core.ValRef(sym) =>
-                val phiRef = defSymNameToPhiRef(dc.symbol.name.toString)
-                val addInp = getAddInputRefDef(owner, phiRef, core.ValRef(replacements(sym)), insideBlock)
-                addInputRefs = addInputRefs :+ addInp._1
-                addInp._2
+          // var addInputRefs = Seq[u.Ident]()
+
+          // phiNode refs according to the arg positions of the def are stored in defSymNameToPhiRef. Iterate through
+          // phiNode refs and add the according input
+          var defArgPhis = defSymNameToPhiRef(dc.symbol.name.toString)
+          var currIdx = 0
+          var argIdx = 0
+          args.foreach(
+            s => { s.foreach {
+              case core.ParRef(sym) => {
+                val phiRef = defArgPhis(currIdx)(argIdx)
+                val argReplSym = replacements(sym)
+                val addInpRefDef = getAddInputRefDef(owner, phiRef, core.ParRef(argReplSym), insideBlock)
+                valDefsFinal = valDefsFinal :+ addInpRefDef._2
+                argIdx += 1
+              }
+              case core.ValRef(sym) => {
+                val phiRef = defArgPhis(currIdx)(argIdx)
+                val argReplSym = replacements(sym)
+                val addInpRefDef = getAddInputRefDef(owner, phiRef, core.ValRef(argReplSym), insideBlock)
+                valDefsFinal = valDefsFinal :+ addInpRefDef._2
+                argIdx += 1
+              }
+            }
+              currIdx += 1
             }
           )
 
-          valDefsFinal = valDefsFinal ++ addInputDefs
+//          val addInputDefs = args.flatMap(
+//            s => s.map{
+//              case core.ParRef(sym) =>
+//                val phiRef = defSymNameToPhiRef(dc.symbol.name.toString)
+//                val addInp = getAddInputRefDef(owner, phiRef, core.ParRef(replacements(sym)), insideBlock)
+//                // addInputRefs = addInputRefs :+ addInp._1
+//                addInp._2
+//              case core.ValRef(sym) =>
+//                val phiRef = defSymNameToPhiRef(dc.symbol.name.toString)
+//                val addInp = getAddInputRefDef(owner, phiRef, core.ValRef(replacements(sym)), insideBlock)
+//                // addInputRefs = addInputRefs :+ addInp._1
+//                addInp._2
+//            }
+////          )
+//
+//          valDefsFinal = valDefsFinal ++ addInputDefs
 
       }._tree(tree)
 
@@ -1511,6 +1578,7 @@ trait LabyrinthLabynization extends LabyrinthCompilerBase {
 
     val condNode = op("condNode")
     val cross = op("cross")
+    val empty = op("empty")
     val flatMapDataBagHelper = op("flatMapDataBagHelper")
     val fold = op("fold")
     val foldAlgHelper = op("foldAlgHelper")

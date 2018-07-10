@@ -770,13 +770,13 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
           .addInput(n2_2, true, false)
           .setParallelism(1)
 
-        val n_cross = new LabyNode[Either[Int, String], Tuple2[Int, String]](
+        val n_cross = new LabyNode[Either[Int, String], (Int, String)](
           "cross",
           ScalaOps.cross[Int, String],
           0,
           new Always0[Either[Int,String]](1),
           null,
-          new ElementOrEventTypeInfo[Tuple2[Int, String]](Memo.typeInfoForType[Tuple2[Int, String]])
+          new ElementOrEventTypeInfo[(Int, String)](Memo.typeInfoForType[(Int, String)])
         )
           .addInput(n1_3, true, false)
           .addInput(n2_3, true, false)
@@ -1312,7 +1312,8 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
 
     "clickc" in {
       val inp = reify {
-        var yesterdayCounts: DataBag[(Int, Int)] = null
+//        var yesterdayCounts: DataBag[(Int, Int)] = DataBag(Seq((1,1)))
+        var yesterdayCounts: DataBag[(Int, Int)] = DataBag.empty
         for (day <- 1 to 100) {
           // Read all page-visits for this day
           val visits: DataBag[Int] = DataBag.readText("XXXX" + day).map(Integer.parseInt) // integer pageIDs

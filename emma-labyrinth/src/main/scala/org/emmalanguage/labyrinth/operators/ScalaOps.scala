@@ -16,19 +16,19 @@
 package org.emmalanguage
 package labyrinth.operators;
 
-import labyrinth.BagOperatorOutputCollector
 import api.DataBag
 import api.alg.Alg
+import api.Group
 import compiler.Memo
 import io.csv.CSV
 import io.csv.CSVScalaSupport
 import labyrinth.util.SerializedBuffer
-import org.emmalanguage.api.Group
-import org.emmalanguage.labyrinth.CFLConfig
-import org.emmalanguage.labyrinth.ElementOrEvent
-import org.emmalanguage.labyrinth.KickoffSource
-import org.emmalanguage.labyrinth.LabyNode
-import org.emmalanguage.labyrinth.partitioners.Partitioner
+import labyrinth.BagOperatorOutputCollector
+import labyrinth.CFLConfig
+import labyrinth.ElementOrEvent
+import labyrinth.KickoffSource
+import labyrinth.LabyNode
+import labyrinth.partitioners.Partitioner
 
 import org.apache.flink.api.common.typeinfo.TypeInformation
 import org.apache.flink.api.common.typeutils.TypeSerializer
@@ -83,6 +83,16 @@ object ScalaOps {
       override def openOutBag() : Unit = {
         super.openOutBag()
         out.collectElement(f())
+        out.closeBag()
+      }
+    }
+  }
+
+  def empty[OUT]: BagOperator[org.emmalanguage.labyrinth.util.Nothing, OUT] = {
+
+    new BagOperator[org.emmalanguage.labyrinth.util.Nothing,OUT]() {
+      override def openOutBag() : Unit = {
+        super.openOutBag()
         out.closeBag()
       }
     }
@@ -214,7 +224,7 @@ object ScalaOps {
     }
   }
 
-  def cross[A,B]: BagOperator[Either[A, B], org.apache.flink.api.java.tuple.Tuple2[A, B]] =
+  def cross[A,B]: BagOperator[Either[A, B], (A, B)] =
     new Cross[A,B] {}
 
   def joinScala[A,B,K](extrA: A => K, extrB: B => K): JoinScala[A,B,K] =

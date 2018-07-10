@@ -16,7 +16,8 @@
 
 package org.emmalanguage.labyrinth.operators;
 
-import org.apache.flink.api.java.tuple.Tuple2;
+// import org.apache.flink.api.java.tuple.Tuple2;
+import scala.Tuple2;
 import org.emmalanguage.labyrinth.util.SerializedBuffer;
 import scala.util.Either;
 
@@ -94,7 +95,7 @@ public class Cross<A, B> extends BagOperator<Either<A,B>, Tuple2<A,B>> implement
 
     private void generateTuples(Either<A,B> b) {
         for (Either<A,B> a: lhsBuffered) {
-            out.collectElement(Tuple2.of(a.left().get(), b.right().get()));
+            out.collectElement(Tuple2.apply(a.left().get(), b.right().get()));
         }
     }
 }
