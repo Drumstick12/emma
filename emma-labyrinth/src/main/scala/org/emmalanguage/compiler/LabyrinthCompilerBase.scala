@@ -19,6 +19,9 @@ package compiler
 import api.CSVConverter
 import api.Meta
 import api.alg.Alg
+import org.emmalanguage.labyrinth.operators.ScalaOps
+
+import org.apache.flink.api.common.typeinfo.TypeInformation
 
 trait LabyrinthCompilerBase extends Compiler {
 
@@ -39,16 +42,16 @@ trait LabyrinthCompilerBase extends Compiler {
   }
 
   def prePrint(t: u.Tree) : Boolean = {
-//    print("\nprePrint: ")
-//    print(t)
-//    print("   type: ")
-//    print(t.tpe)
-//    t match {
-//      case core.ValDef(lhs, rhs) =>
-//        print("   isFun: ")
-//        println(isFun(lhs))
-//      case _ => ()
-//    }
+    print("\nprePrint: ")
+    print(t)
+    print("   type: ")
+    print(t.tpe)
+    //  t match {
+    //    case core.ValDef(lhs, rhs) =>
+    //      print("   isFun: ")
+    //      println(isFun(lhs))
+    //    case _ => ()
+    //  }
     true
   }
 
@@ -57,15 +60,15 @@ trait LabyrinthCompilerBase extends Compiler {
     print(t)
     print("   type: ")
     println(t.tpe.widen)
-//    t match {
-//      case core.Let(vals, _, expr) =>
-//        //        print("vals: ")
-//        //        println(vals)
-//        //        print(" expression: ")
-//        //        println(expr)
-//        ()
-//      case _ => ()
-//    }
+    //  t match {
+    //    case core.Let(vals, _, expr) =>
+    //      //        print("vals: ")
+    //      //        println(vals)
+    //      //        print(" expression: ")
+    //      //        println(expr)
+    //      ()
+    //    case _ => ()
+    //  }
   }
 
   def countSeenRefs(t: u.Tree, m: scala.collection.mutable.Map[u.TermSymbol, u.TermSymbol]) : Int = {
@@ -181,6 +184,106 @@ trait LabyrinthCompilerBase extends Compiler {
     meta(t).update(SkipTraversal)
   }
 
+  object ScalaOps$ extends ModuleAPI {
+    lazy val sym = api.Sym[ScalaOps.type].asModule
+
+    val condNode = op("condNode")
+    val cross = op("cross")
+    val empty = op("empty")
+    val flatMapDataBagHelper = op("flatMapDataBagHelper")
+    val fold = op("fold")
+    val foldAlgHelper = op("foldAlgHelper")
+    val foldGroupAlgHelper = op("foldGroupAlgHelper")
+    val fromNothing = op("fromNothing")
+    val fromSingSrcApply = op("fromSingSrcApply")
+    val joinScala = op("joinScala")
+    val map = op("map")
+    val reduce = op("reduce")
+    val textReader = op("textReader")
+    val textSource = op("textSource")
+    val toCsvString = op("toCsvString")
+    val writeString = op("writeString")
+
+
+    override def ops = Set()
+  }
+
+  object Memo$ extends ModuleAPI {
+    lazy val sym = api.Sym[Memo.type].asModule
+
+    val typeInfoForType = op("typeInfoForType")
+
+    override def ops = Set()
+
+  }
+
+  object Left$ extends ModuleAPI {
+    lazy val sym = api.Sym[scala.util.Left[Any, Any]].asClass.companion.asModule
+
+    val apply = op("apply")
+
+    override def ops = Set()
+  }
+
+  object Right$ extends ModuleAPI {
+    lazy val sym = api.Sym[scala.util.Right[Any, Any]].asClass.companion.asModule
+
+    val apply = op("apply")
+
+    override def ops = Set()
+  }
+
+  object StreamExecutionEnvironment$ extends ClassAPI {
+    lazy val sym = api.Sym[org.apache.flink.streaming.api.scala.StreamExecutionEnvironment].asClass
+
+    val execute = op("execute", List(0))
+
+    override def ops = Set()
+  }
+
+  object Tuple2API extends ClassAPI {
+    lazy val sym = api.Sym[org.apache.flink.api.java.tuple.Tuple2[Any, Any]].asClass
+
+    override def ops = Set()
+
+  }
+
+  object TypeInformationAPI extends ClassAPI {
+    lazy val sym = api.Sym[org.apache.flink.api.common.typeinfo.TypeInformation[Any]].asClass
+
+    val createSerializer = op("createSerializer")
+
+    override def ops = Set()
+  }
+
+  object ElementOrEventAPI extends ClassAPI {
+    lazy val sym = api.Sym[labyrinth.ElementOrEventTypeInfo[Any]].asClass
+    override def ops = Set()
+  }
+
+  object LabyStatics$ extends ModuleAPI {
+    lazy val sym = api.Sym[org.emmalanguage.labyrinth.operators.LabyStatics.type ].asModule
+
+    val phi = op("phi")
+    val registerCustomSerializer = op("registerCustomSerializer")
+    val setKickoffSource = op("setKickoffSource")
+    val setTerminalBbid = op("setTerminalBbid")
+    val translateAll = op("translateAll")
+
+    override def ops = Set()
+
+  }
+
+  object LabyNodeAPI extends ClassAPI {
+    lazy val sym = api.Sym[labyrinth.LabyNode[Any,Any]].asClass
+
+    val setParallelism = op("setParallelism")
+    val addInput = op("addInput", List(3))
+    override def ops = Set()
+  }
+
+  def getTpe[T: u.WeakTypeTag] : u.Type = api.Sym[T].asClass.toTypeConstructor.widen
+
 }
 
 object DB {
@@ -248,5 +351,107 @@ object DB {
     z <- zs
   } yield (x, y, z)
 
+}
+
+
+// ======================================================================================= \\
+// ======================================================================================= \\
+// all of this copied and adjusted from FlinkDataSet.scala to avoid anonymous class errors \\
+// ======================================================================================= \\
+// ======================================================================================= \\
+
+object Memo {
+  private val memo = collection.mutable.Map.empty[Any, Any]
+
+  { // initialize memo table with standard types
+    import org.apache.flink.api.scala._
+    // standard Scala types
+    memoizeTypeInfo(implicitly[org.emmalanguage.api.Meta[Unit]],                                  createTypeInformation)
+    memoizeTypeInfo(implicitly[org.emmalanguage.api.Meta[Boolean]],                               createTypeInformation)
+    memoizeTypeInfo(implicitly[org.emmalanguage.api.Meta[Char]],                                  createTypeInformation)
+    memoizeTypeInfo(implicitly[org.emmalanguage.api.Meta[Byte]],                                  createTypeInformation)
+    memoizeTypeInfo(implicitly[org.emmalanguage.api.Meta[Short]],                                 createTypeInformation)
+    memoizeTypeInfo(implicitly[org.emmalanguage.api.Meta[Int]],                                   createTypeInformation)
+    memoizeTypeInfo(implicitly[org.emmalanguage.api.Meta[Long]],                                  createTypeInformation)
+    memoizeTypeInfo(implicitly[org.emmalanguage.api.Meta[Float]],                                 createTypeInformation)
+    memoizeTypeInfo(implicitly[org.emmalanguage.api.Meta[Double]],                                createTypeInformation)
+    memoizeTypeInfo(implicitly[org.emmalanguage.api.Meta[String]],                                createTypeInformation)
+    memoizeTypeInfo(implicitly[org.emmalanguage.api.Meta[BigInt]],                                createTypeInformation)
+    memoizeTypeInfo(implicitly[org.emmalanguage.api.Meta[BigDecimal]],                            createTypeInformation)
+    // standard Java types
+    memoizeTypeInfo(implicitly[org.emmalanguage.api.Meta[java.lang.Void]],                        createTypeInformation)
+    memoizeTypeInfo(implicitly[org.emmalanguage.api.Meta[java.lang.Boolean]],                     createTypeInformation)
+    memoizeTypeInfo(implicitly[org.emmalanguage.api.Meta[java.lang.Character]],                   createTypeInformation)
+    memoizeTypeInfo(implicitly[org.emmalanguage.api.Meta[java.lang.Byte]],                        createTypeInformation)
+    memoizeTypeInfo(implicitly[org.emmalanguage.api.Meta[java.lang.Short]],                       createTypeInformation)
+    memoizeTypeInfo(implicitly[org.emmalanguage.api.Meta[java.lang.Integer]],                     createTypeInformation)
+    memoizeTypeInfo(implicitly[org.emmalanguage.api.Meta[java.lang.Long]],                        createTypeInformation)
+    memoizeTypeInfo(implicitly[org.emmalanguage.api.Meta[java.lang.Float]],                       createTypeInformation)
+    memoizeTypeInfo(implicitly[org.emmalanguage.api.Meta[java.lang.Double]],                      createTypeInformation)
+    memoizeTypeInfo(implicitly[org.emmalanguage.api.Meta[java.math.BigInteger]],                  createTypeInformation)
+    memoizeTypeInfo(implicitly[org.emmalanguage.api.Meta[java.math.BigDecimal]],                  createTypeInformation)
+    // some exotic types we use
+    memoizeTypeInfo(implicitly[org.emmalanguage.api.Meta[org.emmalanguage.api.Group[Int,Long]]],  createTypeInformation)
+    memoizeTypeInfo(implicitly[org.emmalanguage.api.Meta[Iterator[Int]]],                         createTypeInformation)
+    memoizeTypeInfo(implicitly[org.emmalanguage.api.Meta[scala.runtime.RichInt]],                 createTypeInformation)
+    memoizeTypeInfo(implicitly[org.emmalanguage.api.Meta[collection.immutable.Range.Inclusive]],  createTypeInformation)
+    memoizeTypeInfo(implicitly[org.emmalanguage.api.Meta[(Int, Int)]],                            createTypeInformation)
+    memoizeTypeInfo(implicitly[org.emmalanguage.api.Meta[labyrinth.util.Nothing]],                createTypeInformation)
+    memoizeTypeInfo(implicitly[org.emmalanguage.api.Meta[Seq[Int]]],                              createTypeInformation)
+    memoizeTypeInfo(implicitly[org.emmalanguage.api.Meta[Seq[String]]],                           createTypeInformation)
+    memoizeTypeInfo(implicitly[org.emmalanguage.api.Meta[(String, Long)]],                        createTypeInformation)
+    memoizeTypeInfo(implicitly[org.emmalanguage.api.Meta[labyrinth.util.Unit]],                   createTypeInformation)
+    memoizeTypeInfo(implicitly[org.emmalanguage.api.Meta[org.emmalanguage.api.CSV]],              createTypeInformation)
+    memoizeTypeInfo(
+      implicitly[org.emmalanguage.api.Meta[org.apache.flink.api.java.tuple.Tuple2[Int, String]]],
+      createTypeInformation
+    )
+    memoizeTypeInfo(
+      implicitly[org.emmalanguage.api.Meta[scala.util.Either[(String, Long),org.emmalanguage.io.csv.CSV]]],
+      createTypeInformation
+    )
+    memoizeTypeInfo(
+      implicitly[org.emmalanguage.api.Meta[scala.util.Either[(Int, Int),(Int, Int)]]],
+      createTypeInformation
+    )
+    memoizeTypeInfo(
+      implicitly[org.emmalanguage.api.Meta[((Int, Int), (Int, Int))]],
+      createTypeInformation
+    )
+    memoizeTypeInfo(
+      implicitly[org.emmalanguage.api.Meta[org.emmalanguage.api.Group[String,Long]]],
+      createTypeInformation
+    )
+    memoizeTypeInfo(
+      implicitly[org.emmalanguage.api.Meta[
+        org.emmalanguage.labyrinth.operators.InputFormatWithInputSplit[String,org.apache.flink.core.fs.FileInputSplit]]
+        ],
+      createTypeInformation
+    )
+  }
+
+  def memoizeTypeInfo[T](implicit meta: org.emmalanguage.api.Meta[T], info: TypeInformation[T])
+  : TypeInformation[T] = {
+    val tpe = fix(meta.tpe).toString
+    val res = memo.getOrElseUpdate(tpe, info)
+    res.asInstanceOf[TypeInformation[T]]
+  }
+
+  implicit def typeInfoForType[T](implicit meta: org.emmalanguage.api.Meta[T]): TypeInformation[T] = {
+    val tpe = fix(meta.tpe).toString
+    if (memo.contains(tpe)) memo(tpe).asInstanceOf[TypeInformation[T]]
+    else throw new RuntimeException(
+      s"""
+        |Cannot find TypeInformation for type $tpe.
+        |Try calling `FlinkDataSet.memoizeTypeInfo[$tpe]` explicitly before the `emma.onFlink` quote.
+      """.stripMargin.trim
+    )
+  }
+
+  private def fix(tpe: scala.reflect.runtime.universe.Type): scala.reflect.runtime.universe.Type =
+    tpe.dealias.map(t => {
+      if (t =:= scala.reflect.runtime.universe.typeOf[java.lang.String]) scala.reflect.runtime.universe.typeOf[String]
+      else t
+    })
 }
 

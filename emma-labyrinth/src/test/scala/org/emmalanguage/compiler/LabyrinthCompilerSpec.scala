@@ -120,26 +120,7 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
     ).compose(_.tree)
   }
 
-  def fullPipeline(): u.Expr[Any] => u.Tree = {
-    pipeline(typeCheck = true)(
-      // lifting
-      Lib.expand,
-      Core.lift,
-      // optimizations
-      Core.cse,
-      Optimizations.foldFusion,
-      // backend
-      Comprehension.combine,
-      Core.unnest,
-      // labyrinth transformations
-      labyrinthNormalize,
-      Core.unnest,
-      labyrinthLabynize,
-      Core.unnest
-    ).compose(_.tree)
-  }
-
-  def applyOnlyLabynization(): u.Expr[Any] => u.Tree = {
+  def applyLabynizationOnly(): u.Expr[Any] => u.Tree = {
     pipeline(typeCheck = true)(
       labyrinthLabynize.timed,
       Core.unnest
@@ -159,18 +140,6 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
 
   // actual tests
   "normalization" - {
-
-//    "defcall expression" in {
-//      val inp = reify {
-//        def p(arg: Int) = println(arg)
-//        p(1)
-//      }
-//      val exp = reify {
-//        val a = 1
-//      }
-//
-//      applyXfrm(labyrinthNormalize)(inp) shouldBe alphaEqTo(anfPipeline(exp))
-//    }
 
     "ValDef only" in {
       val inp = reify {
@@ -482,10 +451,8 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
 
     /*
     for now
-    .addInput( ..., true, false)
     .setparallelism(1)
     partitioner always0 with para = 1
-    bbid = 1
      */
 
     "lambda only" in {
@@ -1189,7 +1156,7 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
 
       }
 
-      applyOnlyLabynization()(inp) shouldBe alphaEqTo(anfPipeline(exp))
+      applyLabynizationOnly()(inp) shouldBe alphaEqTo(anfPipeline(exp))
 
     }
 
@@ -1287,8 +1254,8 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
 
         val ifCondNode = new LabyNode(
           "condNode",
-          ScalaOps.condNode( //[java.lang.Boolean, util.Unit]
-            Seq(2, 1), //vigyazat!
+          ScalaOps.condNode(
+            Seq(2, 1),
             Seq(3)
           ),
           1,
@@ -1310,60 +1277,15 @@ class LabyrinthCompilerSpec extends BaseCompilerSpec
       applyLabynization()(inp) shouldBe alphaEqTo(anfPipeline(exp))
     }
 
-    "clickc" in {
-      val inp = reify {
-//        var yesterdayCounts: DataBag[(Int, Int)] = DataBag(Seq((1,1)))
-        var yesterdayCounts: DataBag[(Int, Int)] = DataBag.empty
-        for (day <- 1 to 100) {
-          // Read all page-visits for this day
-          val visits: DataBag[Int] = DataBag.readText("XXXX" + day).map(Integer.parseInt) // integer pageIDs
-          // Count how many times each page was visited:
-          val counts: DataBag[(Int, Int)] = visits
-            .groupBy(i => i)
-            .map(group => (group.key, group.values.size.toInt))
-          // Compare to previous day (but skip the first day)
-          if (day != 1) {
-            // In the paper, this is actually an outer join
-            val diffs: DataBag[Int] =
-              for {
-                c <- counts
-                y <- yesterdayCounts
-                if c._1 == y._1
-              } yield Math.abs(c._2 - y._2)
-            val sum = diffs.fold(Reduce(0, (x: Int, y: Int) => x + y))
-            println(sum)
-          }
-          yesterdayCounts = counts
-        }
-      }
 
-      val exp = reify { val a = 1 }
-
-      fullPipeline()(inp) shouldBe alphaEqTo(anfPipeline(exp))
-    }
-
-    "clickcasdf" in {
-      val inp = reify {
-//        for(day <- 1 to 5) {
-//          if (day != 1) {
-//            println
-//          } else {
-//            println("foo")
-//          }
-//        }
-        var day = 1
-        while (day < 5) {
-          if (day != 1) {
-            println
-          } else {
-          }
-        }
-      }
-
-      val exp = reify { val a = 1 }
-
-      fullPipeline()(inp) shouldBe alphaEqTo(anfPipeline(exp))
-    }
+    // foreach to while bug
+    // for(day <- 1 to 5) {
+    //   if (day != 1) {
+    //     println
+    //   } else {
+    //     println("foo")
+    //   }
+    // }
 
   }
 
